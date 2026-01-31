@@ -1,0 +1,212 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  AGENT
+  BROKER
+}
+
+enum CommissionType {
+  PERCENT
+  FIXED
+}
+
+enum PartyType {
+  AGENT
+  BROKER
+}
+
+enum NotificationType {
+  MISSING_SALES
+  UNACCESSED_EVENT
+}
+
+enum AttachmentEntityType {
+  VENUE
+  EVENT
+}
+
+model Tenant {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  status    String   @default("ACTIVE")
+  createdAt DateTime @default(now())
+
+  users       User[]
+  agencies    Agency[]
+  venues      Venue[]
+  events      Event[]
+  eventDays   EventDay[]
+  sales       Sale[]
+  accesses    Access[]
+  notifications Notification[]
+  attachments Attachment[]
+}
+
+model User {
+  id                 String   @id @default(uuid())
+  tenantId           String?
+  agencyId           String?
+  email              String   @unique
+  passwordHash       String
+  role               UserRole
+  isActive           Boolean  @default(true)
+  mustChangePassword Boolean  @default(false)
+  createdAt          DateTime @default(now())
+
+  tenant  Tenant? @relation(fields: [tenantId], references: [id])
+  agency  Agency? @relation(fields: [agencyId], references: [id])
+  sessions Session[]
+  sales    Sale[]   @relation("SaleCreatedBy")
+  accesses Access[]
+  attachments Attachment[]
+}
+
+model Session {
+  id        String   @id
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model Agency {
+  id        String   @id @default(uuid())
+  tenantId  String
+  name      String
+  color     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  venues Venue[]
+  events Event[]
+  users  User[]
+}
+
+model Venue {
+  id                String   @id @default(uuid())
+  tenantId          String
+  agencyId          String?
+  name              String
+  address           String?
+  phone             String?
+  contactName       String?
+  trashRule         String?
+  cashHandling      String?
+  notes             String?
+  hours             String?
+  workWindow        String?
+  loadInTime        String?
+  loadOutTime       String?
+  preContactRequired Boolean @default(false)
+  brokerNote        String?
+  createdAt         DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  agency Agency? @relation(fields: [agencyId], references: [id])
+  events Event[]
+}
+
+model Event {
+  id            String   @id @default(uuid())
+  tenantId      String
+  agencyId      String?
+  venueId       String?
+  title         String
+  startDate     DateTime
+  endDate       DateTime
+  colorOverride String?
+  createdAt     DateTime @default(now())
+
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  agency   Agency? @relation(fields: [agencyId], references: [id])
+  venue    Venue? @relation(fields: [venueId], references: [id])
+  eventDays EventDay[]
+  sales    Sale[]
+  accesses Access[]
+}
+
+model EventDay {
+  id              String   @id @default(uuid())
+  tenantId        String
+  eventId         String
+  date            DateTime
+  brokerCompleted Boolean  @default(false)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  event  Event  @relation(fields: [eventId], references: [id])
+
+  @@unique([eventId, date])
+}
+
+model Sale {
+  id              String   @id @default(uuid())
+  tenantId        String
+  eventId         String
+  date            DateTime
+  partyType       PartyType
+  amount          Float
+  commissionType  CommissionType
+  commissionValue Float
+  parkingFee      Float   @default(0)
+  managerName     String
+  memoAppendOnly  String?
+  createdByUserId String
+  createdAt       DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  event  Event  @relation(fields: [eventId], references: [id])
+  createdBy User @relation("SaleCreatedBy", fields: [createdByUserId], references: [id])
+}
+
+model Access {
+  id        String   @id @default(uuid())
+  tenantId  String
+  eventId   String
+  userId    String
+  accessedAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  event  Event  @relation(fields: [eventId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+}
+
+model Notification {
+  id         String           @id @default(uuid())
+  tenantId   String
+  type       NotificationType
+  targetDate DateTime
+  refId      String
+  isClosed   Boolean          @default(false)
+  createdAt  DateTime         @default(now())
+  closedAt   DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+}
+
+model Attachment {
+  id            String   @id @default(uuid())
+  tenantId      String
+  entityType    AttachmentEntityType
+  entityId      String
+  blobUrl       String
+  filename      String
+  contentType   String
+  size          Int
+  uploadedByUserId String
+  createdAt     DateTime @default(now())
+  deletedAt     DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  uploadedBy User @relation(fields: [uploadedByUserId], references: [id])
+}
