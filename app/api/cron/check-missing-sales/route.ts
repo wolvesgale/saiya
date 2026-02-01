@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db';
 import { sendEmail } from '@/lib/email';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   const today = new Date();

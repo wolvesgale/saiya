@@ -3,6 +3,8 @@ import { prisma } from '@/lib/db';
 import { requireSession, requireRoles, errorResponse } from '@/lib/api';
 import { auditLog } from '@/lib/audit';
 
+export const runtime = 'nodejs';
+
 export async function GET(request: Request) {
   const { user, response } = await requireSession();
   if (response) return response;
