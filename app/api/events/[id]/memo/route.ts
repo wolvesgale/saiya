@@ -29,6 +29,9 @@ export async function POST(request: Request, { params }: { params: { id: string 
     if (user.role !== 'SUPER_ADMIN' && event.tenantId !== user.tenantId) {
       return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     }
+    if (user.agencyId && event.agencyId !== user.agencyId) {
+      return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    }
     if (!user.agencyId) {
       return NextResponse.json({ message: 'Agency required' }, { status: 403 });
     }

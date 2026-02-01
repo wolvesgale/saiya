@@ -26,14 +26,14 @@ type Agency = {
   id: string;
   name: string;
   email: string | null;
-  brandName: string | null;
+  shopName: string | null;
   isActive: boolean;
   createdAt: string;
 };
 
 type User = { id: string; email: string; role: string; isActive: boolean };
 
-type Venue = { id: string; name: string; address: string | null; cashHandling: string | null };
+type Venue = { id: string; name: string; address: string | null; cashHandling: string | null; attachmentUrl: string | null };
 
 type Intermediary = { id: string; name: string; reportFormUrl: string | null };
 
@@ -54,6 +54,7 @@ type Event = {
 type SummaryResponse = {
   agencyTotals: Record<string, number>;
   venueAverages: Record<string, number>;
+  overallAverage: number;
 };
 
 const cashHandlingOptions = [
@@ -70,16 +71,6 @@ export default function AdminDashboard() {
   const [summary, setSummary] = useState<SummaryResponse | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [currentMonth, setCurrentMonth] = useState(new Date());
-
-  const timeOptions = useMemo(() => {
-    const options: string[] = [];
-    for (let hour = 7; hour <= 23; hour += 1) {
-      for (let minutes = 0; minutes < 60; minutes += 15) {
-        options.push(`${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`);
-      }
-    }
-    return options;
-  }, []);
 
   const timeOptions = useMemo(() => {
     const options: string[] = [];
@@ -132,7 +123,7 @@ export default function AdminDashboard() {
       body: JSON.stringify({
         name: formData.get('name'),
         email: formData.get('email'),
-        brandName: formData.get('brandName'),
+        shopName: formData.get('shopName'),
         password: formData.get('password'),
       }),
     });
@@ -143,7 +134,7 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleUpdateAgency = async (agencyId: string, payload: { email: string | null; brandName: string | null; password?: string }) => {
+  const handleUpdateAgency = async (agencyId: string, payload: { email: string | null; shopName: string | null; password?: string }) => {
     const response = await fetch(`/api/agencies/${agencyId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -199,6 +190,32 @@ export default function AdminDashboard() {
       event.currentTarget.reset();
       refresh();
     }
+  };
+
+  const handleUploadVenueAttachment = async (venueId: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('entityType', 'VENUE');
+    formData.append('entityId', venueId);
+    const response = await fetch('/api/attachments/upload', {
+      method: 'POST',
+      body: formData,
+    });
+    if (!response.ok) {
+      setMessage('添付ファイルのアップロードに失敗しました。');
+      return;
+    }
+    const payload = await response.json();
+    const attachmentUrl = payload.blobUrl ?? payload.driveWebViewLink ?? null;
+    if (attachmentUrl) {
+      await fetch(`/api/venues/${venueId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ attachmentUrl }),
+      });
+    }
+    setMessage('添付ファイルを更新しました。');
+    refresh();
   };
 
   const handleCreateEvent = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -301,8 +318,8 @@ export default function AdminDashboard() {
               <input id="agency-email" name="email" type="email" />
             </div>
             <div>
-              <label htmlFor="agency-brand">屋号 (任意)</label>
-              <input id="agency-brand" name="brandName" />
+              <label htmlFor="agency-shop">屋号 (任意)</label>
+              <input id="agency-shop" name="shopName" />
             </div>
             <div>
               <label htmlFor="agency-password">初期パスワード (任意)</label>
@@ -315,7 +332,7 @@ export default function AdminDashboard() {
               <li key={agency.id} className="border border-slate-800 rounded p-3 space-y-2">
                 <div className="font-medium">{agency.name}</div>
                 <div className="text-xs text-slate-400">メール: {agency.email ?? '未登録'}</div>
-                <div className="text-xs text-slate-400">屋号: {agency.brandName ?? '未登録'}</div>
+                <div className="text-xs text-slate-400">屋号: {agency.shopName ?? '未登録'}</div>
                 <div className="text-xs text-slate-400">ステータス: {agency.isActive ? '有効' : '停止'}</div>
                 <div className="text-xs text-slate-400">作成日: {agency.createdAt?.slice(0, 10)}</div>
                 <form
@@ -324,14 +341,14 @@ export default function AdminDashboard() {
                     const formData = new FormData(submitEvent.currentTarget);
                     handleUpdateAgency(agency.id, {
                       email: (formData.get('email')?.toString() || null) as string | null,
-                      brandName: (formData.get('brandName')?.toString() || null) as string | null,
+                      shopName: (formData.get('shopName')?.toString() || null) as string | null,
                       password: formData.get('password')?.toString() || undefined,
                     });
                   }}
                   className="grid gap-2"
                 >
                   <input name="email" defaultValue={agency.email ?? ''} placeholder="email" />
-                  <input name="brandName" defaultValue={agency.brandName ?? ''} placeholder="屋号" />
+                  <input name="shopName" defaultValue={agency.shopName ?? ''} placeholder="屋号" />
                   <input name="password" type="password" placeholder="パスワード変更" />
                   <button className="bg-slate-700 text-white" type="submit">
                     更新
@@ -478,10 +495,36 @@ export default function AdminDashboard() {
             </div>
             <button className="bg-indigo-500 text-white">作成</button>
           </form>
-          <ul className="mt-4 space-y-1 text-sm text-slate-300">
+          <ul className="mt-4 space-y-3 text-sm text-slate-300">
             {venues.map((venue) => (
-              <li key={venue.id}>
-                {venue.name} ({venue.cashHandling === 'HOLD' ? '預かり' : venue.cashHandling === 'TAKE_HOME' ? '持ち帰り' : '未設定'})
+              <li key={venue.id} className="border border-slate-800 rounded p-3 space-y-2">
+                <div>
+                  {venue.name} ({venue.cashHandling === 'HOLD' ? '預かり' : venue.cashHandling === 'TAKE_HOME' ? '持ち帰り' : '未設定'})
+                </div>
+                {venue.attachmentUrl ? (
+                  <a className="text-xs text-indigo-300" href={venue.attachmentUrl} target="_blank" rel="noreferrer">
+                    添付ファイルを開く
+                  </a>
+                ) : (
+                  <div className="text-xs text-slate-500">添付ファイルなし</div>
+                )}
+                <form
+                  onSubmit={(submitEvent) => {
+                    submitEvent.preventDefault();
+                    const formData = new FormData(submitEvent.currentTarget);
+                    const file = formData.get('file');
+                    if (file instanceof File) {
+                      handleUploadVenueAttachment(venue.id, file);
+                      submitEvent.currentTarget.reset();
+                    }
+                  }}
+                  className="space-y-2"
+                >
+                  <input name="file" type="file" />
+                  <button className="bg-slate-700 text-white" type="submit">
+                    添付をアップロード
+                  </button>
+                </form>
               </li>
             ))}
           </ul>
@@ -635,6 +678,12 @@ export default function AdminDashboard() {
 
       <section className="bg-slate-900/70 border border-slate-800 p-6 rounded-lg">
         <h2 className="text-lg font-semibold mb-4">売上集計</h2>
+        <div className="text-sm text-slate-400 mb-2">
+          平均売上は「当月の売上合計 / 売上入力件数」で算出しています。
+        </div>
+        <div className="text-sm text-slate-300 mb-4">
+          総合平均売上: {summary?.overallAverage?.toLocaleString() ?? '0'}
+        </div>
         <div className="flex items-center gap-2 mb-4">
           <button
             className="bg-slate-800 text-slate-200"

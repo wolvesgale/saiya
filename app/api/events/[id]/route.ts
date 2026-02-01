@@ -78,19 +78,6 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     const agency = await prisma.agency.findUnique({ where: { id: agencyId } });
     if (!agency) return NextResponse.json({ message: 'Invalid agency' }, { status: 400 });
 
-    let intermediaryId = payload.intermediaryId ?? event.intermediaryId ?? null;
-    if (payload.intermediaryId !== undefined) {
-      if (payload.intermediaryId === null || payload.intermediaryId === '') {
-        intermediaryId = null;
-      } else {
-        const intermediary = await prisma.intermediary.findUnique({ where: { id: payload.intermediaryId } });
-        if (!intermediary || intermediary.tenantId !== event.tenantId) {
-          return NextResponse.json({ message: 'Invalid intermediary' }, { status: 400 });
-        }
-        intermediaryId = intermediary.id;
-      }
-    }
-
     const updated = await prisma.event.update({
       where: { id: params.id },
       data: {

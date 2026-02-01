@@ -78,7 +78,7 @@ model Agency {
   tenantId  String
   name      String
   email     String?
-  brandName String?
+  shopName  String?
   passwordHash String
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())

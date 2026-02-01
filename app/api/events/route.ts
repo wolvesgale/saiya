@@ -28,8 +28,15 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const tenantId = user.role === 'SUPER_ADMIN' ? url.searchParams.get('tenantId') ?? undefined : user.tenantId ?? undefined;
 
+  if (user.role === 'AGENT' && !user.agencyId) {
+    return NextResponse.json([]);
+  }
+
   const events = await prisma.event.findMany({
-    where: tenantId ? { tenantId } : {},
+    where: {
+      ...(tenantId ? { tenantId } : {}),
+      ...(user.role === 'AGENT' ? { agencyId: user.agencyId ?? undefined } : {}),
+    },
     include: { agency: true, venue: true, intermediary: true },
     orderBy: { startDate: 'desc' },
   });
@@ -86,15 +93,6 @@ export async function POST(request: Request) {
     const endDate = new Date(payload.endDate);
     if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
       return NextResponse.json({ message: 'Invalid dates' }, { status: 400 });
-    }
-
-    let intermediaryId: string | null = payload.intermediaryId ?? null;
-    if (intermediaryId === '') intermediaryId = null;
-    if (intermediaryId) {
-      const intermediary = await prisma.intermediary.findUnique({ where: { id: intermediaryId } });
-      if (!intermediary || intermediary.tenantId !== tenantId) {
-        return NextResponse.json({ message: 'Invalid intermediary' }, { status: 400 });
-      }
     }
 
     let intermediaryId: string | null = payload.intermediaryId ?? null;

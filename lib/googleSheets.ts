@@ -18,22 +18,38 @@ function getWeekIndex(date: Date) {
   return Math.floor((date.getDate() - 1) / 7);
 }
 
-function columnToLetter(column: number) {
-  let temp = column;
-  let letter = '';
-  while (temp > 0) {
-    const modulo = (temp - 1) % 26;
-    letter = String.fromCharCode(65 + modulo) + letter;
-    temp = Math.floor((temp - modulo) / 26);
+type SheetBlock = {
+  agencyCell: string;
+  nameCell: string;
+  venueCell: string;
+  totalCell: string;
+  dailyColumn: string;
+};
+
+const SHEET_BLOCKS: SheetBlock[] = [
+  { agencyCell: 'J4', nameCell: 'A8', venueCell: 'B8', totalCell: 'B9', dailyColumn: 'J' },
+  { agencyCell: 'P4', nameCell: 'A10', venueCell: 'B10', totalCell: 'B11', dailyColumn: 'P' },
+  { agencyCell: 'J14', nameCell: 'A12', venueCell: 'B12', totalCell: 'B13', dailyColumn: 'J' },
+  { agencyCell: 'P14', nameCell: 'A14', venueCell: 'B14', totalCell: 'B15', dailyColumn: 'P' },
+];
+
+function getCellValue(values: string[][], cell: string) {
+  const match = cell.match(/([A-Z]+)(\d+)/);
+  if (!match) return '';
+  const column = match[1];
+  const row = Number(match[2]);
+  let columnIndex = 0;
+  for (let i = 0; i < column.length; i += 1) {
+    columnIndex = columnIndex * 26 + (column.charCodeAt(i) - 64);
   }
-  return letter;
+  const rowIndex = row - 1;
+  return values[rowIndex]?.[columnIndex - 1] ?? '';
 }
 
 export async function appendDailySales(agencyName: string, venueName: string, date: Date, amount: number) {
-  const moduleName = 'googleapis';
   let googleApis: any;
   try {
-    googleApis = await import(moduleName);
+    googleApis = await (0, eval)('import("googleapis")');
   } catch (error) {
     console.warn('[googleSheets] googleapis not available', error);
     return;
@@ -63,33 +79,33 @@ export async function appendDailySales(agencyName: string, venueName: string, da
   });
   const values = (valuesResponse.data.values ?? []) as string[][];
 
-  const agencyRowIndex = 3;
-  const agencyRow = values[agencyRowIndex] ?? [];
-  const agencyColumnIndex = agencyRow.findIndex((cell: string) => cell === agencyName);
-  if (agencyColumnIndex < 0) {
-    console.warn('[googleSheets] agency column not found', agencyName);
-    return;
+  let targetBlock = SHEET_BLOCKS.find((block) => getCellValue(values, block.agencyCell) === agencyName);
+  if (!targetBlock) {
+    targetBlock = SHEET_BLOCKS.find((block) => getCellValue(values, block.agencyCell) === '');
+    if (!targetBlock) {
+      console.warn('[googleSheets] no available agency block', agencyName);
+      return;
+    }
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: sheetId,
+      range: `${sheetName}!${targetBlock.agencyCell}`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [[agencyName]] },
+    });
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: sheetId,
+      range: `${sheetName}!${targetBlock.nameCell}`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [[agencyName]] },
+    });
   }
 
   const weekIndex = getWeekIndex(date);
-  const startRow = 6 + weekIndex * 7;
-  const endRow = startRow + 6;
-  let venueRowIndex = -1;
-  for (let row = startRow; row <= endRow; row += 1) {
-    const rowData = values[row - 1] ?? [];
-    if (rowData[agencyColumnIndex] === venueName) {
-      venueRowIndex = row;
-      break;
-    }
-  }
-  if (venueRowIndex < 0) {
-    console.warn('[googleSheets] venue row not found', venueName);
-    return;
-  }
-
-  const columnLetter = columnToLetter(agencyColumnIndex + 1);
-  const cellRange = `${sheetName}!${columnLetter}${venueRowIndex}`;
-  const currentValue = toNumber((values[venueRowIndex - 1] ?? [])[agencyColumnIndex]);
+  const dayOffset = (date.getDate() - 1) % 7;
+  const dailyRow = 6 + weekIndex * 7 + dayOffset;
+  const columnLetter = targetBlock.dailyColumn;
+  const cellRange = `${sheetName}!${columnLetter}${dailyRow}`;
+  const currentValue = toNumber(getCellValue(values, `${columnLetter}${dailyRow}`));
   const updatedValue = currentValue + amount;
 
   await sheets.spreadsheets.values.update({
@@ -99,14 +115,19 @@ export async function appendDailySales(agencyName: string, venueName: string, da
     requestBody: { values: [[updatedValue]] },
   });
 
-  const summaryColumnLetter = 'B';
-  const summaryCellRange = `${sheetName}!${summaryColumnLetter}${venueRowIndex}`;
-  const summaryCurrentValue = toNumber((values[venueRowIndex - 1] ?? [])[1]);
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: sheetId,
+    range: `${sheetName}!${targetBlock.venueCell}`,
+    valueInputOption: 'USER_ENTERED',
+    requestBody: { values: [[venueName]] },
+  });
+
+  const summaryCurrentValue = toNumber(getCellValue(values, targetBlock.totalCell));
   const summaryUpdatedValue = summaryCurrentValue + amount;
 
   await sheets.spreadsheets.values.update({
     spreadsheetId: sheetId,
-    range: summaryCellRange,
+    range: `${sheetName}!${targetBlock.totalCell}`,
     valueInputOption: 'USER_ENTERED',
     requestBody: { values: [[summaryUpdatedValue]] },
   });

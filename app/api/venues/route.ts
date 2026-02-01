@@ -12,8 +12,24 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const tenantId = user.role === 'SUPER_ADMIN' ? url.searchParams.get('tenantId') ?? undefined : user.tenantId ?? undefined;
 
+  if (user.role === 'AGENT' && !user.agencyId) {
+    return NextResponse.json([]);
+  }
+
+  let venueIds: string[] | undefined;
+  if (user.role === 'AGENT' && user.agencyId) {
+    const events = await prisma.event.findMany({
+      where: tenantId ? { tenantId, agencyId: user.agencyId } : { agencyId: user.agencyId },
+      select: { venueId: true },
+    });
+    venueIds = Array.from(new Set(events.map((event) => event.venueId)));
+  }
+
   const venues = await prisma.venue.findMany({
-    where: tenantId ? { tenantId } : {},
+    where: {
+      ...(tenantId ? { tenantId } : {}),
+      ...(venueIds ? { id: { in: venueIds } } : {}),
+    },
     orderBy: { createdAt: 'desc' },
   });
   return NextResponse.json(venues);

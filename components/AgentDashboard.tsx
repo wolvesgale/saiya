@@ -60,6 +60,45 @@ type VenueSummary = {
   id: string;
   name: string;
   address: string | null;
+  note: string | null;
+  attachmentUrl: string | null;
+  cashHandling: string | null;
+  notes: string | null;
+  hours: string | null;
+  workWindow: string | null;
+  loadInTime: string | null;
+  loadOutTime: string | null;
+};
+
+type Sale = {
+  id: string;
+  eventId: string;
+  date: string;
+  amount: number;
+};
+
+type SummaryResponse = {
+  agencyTotals: Record<string, number>;
+};
+
+type ReportPrompt = {
+  eventId: string;
+  eventTitle: string;
+  reportFormUrl: string;
+};
+
+const reportPromptKey = (eventId: string) => `reportPromptShown:${eventId}`;
+
+const cashHandlingLabel = (value: string | null) => {
+  if (value === 'HOLD') return '預かり';
+  if (value === 'TAKE_HOME') return '持ち帰り';
+  return '未設定';
+};
+
+type VenueSummary = {
+  id: string;
+  name: string;
+  address: string | null;
   phone: string | null;
   notes: string | null;
   hours: string | null;
@@ -86,16 +125,6 @@ export default function AgentDashboard() {
   const [reportPrompt, setReportPrompt] = useState<ReportPrompt | null>(null);
   const [currentMonth] = useState(new Date());
   const [selectedDates, setSelectedDates] = useState<Record<string, string>>({});
-
-  const timeOptions = useMemo(() => {
-    const options: string[] = [];
-    for (let hour = 7; hour <= 23; hour += 1) {
-      for (let minutes = 0; minutes < 60; minutes += 15) {
-        options.push(`${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`);
-      }
-    }
-    return options;
-  }, []);
 
   const refresh = async () => {
     const [eventsResponse, venuesResponse, salesResponse] = await Promise.all([
@@ -351,11 +380,6 @@ export default function AgentDashboard() {
         </datalist>
       </div>
 
-      <datalist id="time-options">
-        {timeOptions.map((option) => (
-          <option key={option} value={option} />
-        ))}
-      </datalist>
     </div>
   );
 }

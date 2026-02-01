@@ -50,7 +50,7 @@ export async function POST(request: Request) {
         tenantId,
         name: payload.name,
         email: payload.email ?? null,
-        brandName: payload.brandName ?? null,
+        shopName: payload.shopName ?? null,
         passwordHash,
       },
     });

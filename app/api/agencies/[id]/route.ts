@@ -44,13 +44,13 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     const updateData: {
       name: string;
       email?: string | null;
-      brandName?: string | null;
+      shopName?: string | null;
       passwordHash?: string;
       isActive: boolean;
     } = {
       name: payload.name ?? agency.name,
       email: payload.email ?? agency.email,
-      brandName: payload.brandName ?? agency.brandName,
+      shopName: payload.shopName ?? agency.shopName,
       isActive: payload.isActive ?? agency.isActive,
     };
 

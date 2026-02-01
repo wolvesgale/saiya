@@ -46,6 +46,8 @@ export async function GET(request: Request) {
 
     const agencyTotals: Record<string, number> = {};
     const venueTotals: Record<string, { total: number; count: number }> = {};
+    let totalAmount = 0;
+    let totalCount = 0;
 
     sales.forEach((sale) => {
       agencyTotals[sale.agencyId] = (agencyTotals[sale.agencyId] ?? 0) + sale.amount;
@@ -54,6 +56,8 @@ export async function GET(request: Request) {
       venueTotal.total += sale.amount;
       venueTotal.count += 1;
       venueTotals[venueId] = venueTotal;
+      totalAmount += sale.amount;
+      totalCount += 1;
     });
 
     const venueAverages: Record<string, number> = {};
@@ -64,6 +68,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       agencyTotals,
       venueAverages,
+      overallAverage: totalCount ? totalAmount / totalCount : 0,
     });
   } catch (error) {
     return errorResponse(error);

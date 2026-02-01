@@ -90,14 +90,14 @@ DATABASE_URL="本番の接続文字列" npx prisma db seed
      - Vercel Blob
      - Upstash Redis（KV用途）
    - 環境変数（Preview/Production 両方に同じ値を設定）
-    - `DATABASE_URL`（Supabase integration または Vercel Postgres の接続文字列）
-    - `FILE_STORAGE_PROVIDER`（`blob` or `gdrive`）
-    - `BLOB_READ_WRITE_TOKEN`（`FILE_STORAGE_PROVIDER=blob` の場合）
-    - `GOOGLE_SHEETS_ID`
-    - `GOOGLE_SERVICE_ACCOUNT_JSON`
-    - `SHEET_MONTHLY_SALES_NAME`
-    - `GOOGLE_DRIVE_FOLDER_ID`（`FILE_STORAGE_PROVIDER=gdrive` の場合）
-    - `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64`（`FILE_STORAGE_PROVIDER=gdrive` の場合）
+     - `DATABASE_URL`（Supabase integration または Vercel Postgres の接続文字列）
+     - `FILE_STORAGE_PROVIDER`（`blob` or `gdrive`）
+     - `BLOB_READ_WRITE_TOKEN`（`FILE_STORAGE_PROVIDER=blob` の場合）
+     - `GOOGLE_SHEETS_ID`
+     - `GOOGLE_SERVICE_ACCOUNT_JSON`
+     - `SHEET_MONTHLY_SALES_NAME`
+     - `GOOGLE_DRIVE_FOLDER_ID`（`FILE_STORAGE_PROVIDER=gdrive` の場合）
+     - `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64`（`FILE_STORAGE_PROVIDER=gdrive` の場合）
      - `EMAIL_PROVIDER=ses`
      - `AWS_REGION`
      - `AWS_ACCESS_KEY_ID`
@@ -173,7 +173,7 @@ Hobbyプランは1日1回までの制限があるため日次で実行します�
 - 添付がアップロードでき、Agentは削除できない
 
 ## 代理店管理（Agency）
-- 代理店の追加項目: `email`, `brandName`, `password`（未指定の場合は `initpass`）
+- 代理店の追加項目: `email`, `shopName`, `password`（未指定の場合は `initpass`）
 - Adminのみ作成/編集可能
 
 ## Google Sheets 連携設定
@@ -183,6 +183,7 @@ Hobbyプランは1日1回までの制限があるため日次で実行します�
 3. 対象スプレッドシートにサービスアカウントのメールを **編集者** で共有
 4. `GOOGLE_SHEETS_ID` にスプレッドシートIDを設定
 5. 対象月のシート名を `SHEET_MONTHLY_SALES_NAME` に設定（例: `2025年度 XRule 月間売上報告(1月)`）
+6. セルマッピングは `lib/googleSheets.ts` の `SHEET_BLOCKS` で集約管理しています（J4/P4/J14/P14 ブロックを基準に書き込み）。
 
 ## Prisma反映手順
 - 開発環境: `npx prisma migrate dev`
