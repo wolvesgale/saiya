@@ -33,6 +33,7 @@ export function requireRoles(userRole: string, allowed: string[]) {
 
 export function errorResponse(error: unknown) {
   const status = (error as Error & { status?: number }).status ?? 500;
+  const name = error instanceof Error ? error.name : 'Error';
   const message = error instanceof Error ? error.message : 'Unexpected error';
-  return NextResponse.json({ message }, { status });
+  return NextResponse.json({ error: { name, message } }, { status });
 }

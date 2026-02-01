@@ -22,43 +22,47 @@ function buildDays(start: Date, end: Date) {
 
 export async function GET(request: Request) {
   const prisma = getPrisma();
-  const { user, response } = await requireSession(request);
-  if (response) return response;
-  if (!user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
-  const url = new URL(request.url);
-  const tenantId = user.role === 'SUPER_ADMIN' ? url.searchParams.get('tenantId') ?? undefined : user.tenantId ?? undefined;
+  try {
+    const { user, response } = await requireSession(request);
+    if (response) return response;
+    if (!user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+    const url = new URL(request.url);
+    const tenantId = user.role === 'SUPER_ADMIN' ? url.searchParams.get('tenantId') ?? undefined : user.tenantId ?? undefined;
 
-  if (user.role === 'AGENT' && !user.agencyId) {
-    return NextResponse.json([]);
+    if (user.role === 'AGENT' && !user.agencyId) {
+      return NextResponse.json([]);
+    }
+
+    const events = await prisma.event.findMany({
+      where: {
+        ...(tenantId ? { tenantId } : {}),
+        ...(user.role === 'AGENT' ? { agencyId: user.agencyId ?? undefined } : {}),
+      },
+      include: { agency: true, venue: true, intermediary: true },
+      orderBy: { startDate: 'desc' },
+    });
+
+    return NextResponse.json(
+      events.map((event) => ({
+        id: event.id,
+        title: event.title,
+        startDate: event.startDate.toISOString().slice(0, 10),
+        endDate: event.endDate.toISOString().slice(0, 10),
+        agencyName: event.agency?.name ?? null,
+        venueName: event.venue?.name ?? null,
+        agencyId: event.agencyId,
+        venueId: event.venueId,
+        intermediaryId: event.intermediaryId ?? null,
+        intermediaryName: event.intermediary?.name ?? null,
+        intermediaryReportFormUrl: event.intermediary?.reportFormUrl ?? null,
+        memo: event.memo ?? null,
+        cashHandling: event.cashHandling ?? event.venue?.cashHandling ?? null,
+        reportDeadline: event.reportDeadline ?? null,
+      }))
+    );
+  } catch (error) {
+    return errorResponse(error);
   }
-
-  const events = await prisma.event.findMany({
-    where: {
-      ...(tenantId ? { tenantId } : {}),
-      ...(user.role === 'AGENT' ? { agencyId: user.agencyId ?? undefined } : {}),
-    },
-    include: { agency: true, venue: true, intermediary: true },
-    orderBy: { startDate: 'desc' },
-  });
-
-  return NextResponse.json(
-    events.map((event) => ({
-      id: event.id,
-      title: event.title,
-      startDate: event.startDate.toISOString().slice(0, 10),
-      endDate: event.endDate.toISOString().slice(0, 10),
-      agencyName: event.agency?.name ?? null,
-      venueName: event.venue?.name ?? null,
-      agencyId: event.agencyId,
-      venueId: event.venueId,
-      intermediaryId: event.intermediaryId ?? null,
-      intermediaryName: event.intermediary?.name ?? null,
-      intermediaryReportFormUrl: event.intermediary?.reportFormUrl ?? null,
-      memo: event.memo ?? null,
-      cashHandling: event.cashHandling ?? event.venue?.cashHandling ?? null,
-      reportDeadline: event.reportDeadline ?? null,
-    }))
-  );
 }
 
 export async function POST(request: Request) {
