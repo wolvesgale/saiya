@@ -47,6 +47,13 @@ npm run dev
 npm run seed
 ```
 
+## 本番DBへの反映（Vercelでは自動でseedされません）
+本番DBに初期管理者が存在しないとログインできません。Vercelの自動ビルドでは seed は実行されないため、手動で実行してください。
+```bash
+DATABASE_URL="本番の接続文字列" npx prisma migrate deploy
+DATABASE_URL="本番の接続文字列" npx prisma db seed
+```
+
 ## 認証フロー
 - `/login` からログイン
 - `/api/auth/login` -> セッションCookie発行
