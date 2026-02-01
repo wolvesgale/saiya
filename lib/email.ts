@@ -4,36 +4,46 @@ export type EmailPayload = {
   text: string;
 };
 
+import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
+
 export async function sendEmail(payload: EmailPayload) {
   const provider = process.env.EMAIL_PROVIDER ?? 'console';
 
-  if (provider === 'console') {
+  if (provider !== 'ses') {
     console.info('[email]', payload);
     return { id: 'console', provider };
   }
 
-  if (provider === 'resend') {
-    const apiKey = process.env.RESEND_API_KEY;
-    const from = process.env.RESEND_FROM;
-    if (!apiKey || !from) throw new Error('Resend env vars missing');
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ from, to: payload.to, subject: payload.subject, text: payload.text }),
-    });
-    if (!response.ok) {
-      throw new Error('Failed to send email via Resend');
-    }
-    return response.json();
+  const region = process.env.AWS_REGION;
+  const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
+  const from = process.env.SES_FROM;
+
+  if (!region || !accessKeyId || !secretAccessKey || !from) {
+    throw new Error('SES env vars missing');
   }
 
-  if (provider === 'ses') {
-    console.info('[email] SES provider selected. Implement AWS SES integration.');
-    return { id: 'ses-placeholder', provider };
-  }
+  const client = new SESClient({
+    region,
+    credentials: {
+      accessKeyId,
+      secretAccessKey,
+    },
+  });
 
-  throw new Error(`Unknown email provider: ${provider}`);
+  const command = new SendEmailCommand({
+    Source: from,
+    Destination: { ToAddresses: [payload.to] },
+    Message: {
+      Subject: { Data: payload.subject },
+      Body: { Text: { Data: payload.text } },
+    },
+  });
+
+  try {
+    return await client.send(command);
+  } catch (error) {
+    console.error('[email] SES send failed', error);
+    throw error;
+  }
 }

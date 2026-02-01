@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { sendEmail } from '@/lib/email';
 
+export const runtime = 'nodejs';
+
 export async function GET() {
   const today = new Date();
   const targetDate = new Date(today.toISOString().slice(0, 10));

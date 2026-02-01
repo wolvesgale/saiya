@@ -27,14 +27,12 @@ npm run dev
 - `BLOB_READ_WRITE_TOKEN` : Vercel BlobのRWトークン
 
 ### 任意（メール通知）
-- `EMAIL_PROVIDER` : `console`（開発用 / デフォルト）, `resend`, `ses`
-- Resendを使う場合
-  - `RESEND_API_KEY` : ResendのAPIキー
-  - `RESEND_FROM` : 送信元メールアドレス（Resendで検証済み）
-- SESを使う場合（実装は差し替え前提）
+- `EMAIL_PROVIDER` : `console`（開発用 / デフォルト）, `ses`
+- SESを使う場合
+  - `AWS_REGION` : SESのリージョン
   - `AWS_ACCESS_KEY_ID` : IAMユーザーのアクセスキー
   - `AWS_SECRET_ACCESS_KEY` : IAMユーザーのシークレット
-  - `SES_FROM` : SESで検証済みの送信元アドレス
+  - `SES_FROM` : SESで検証済みの送信元アドレス（例: `wolvesgale0512@gmail.com`）
 
 ## 初期データ（Seed）
 - 初回テナント: `Xrule`
@@ -60,6 +58,7 @@ npm run seed
 2. VercelでImportし、環境変数を設定
 3. Postgres/Blob/Upstash RedisをVercel Marketplace経由で作成
 4. `vercel.json` に定義したCron Jobsが有効化される
+5. `Project Settings -> Environment Variables` に `DATABASE_URL` と `BLOB_READ_WRITE_TOKEN` を必ず登録
 
 ## ユーザーが準備すること（Codex以外で実施）
 1. **GitHub**
@@ -71,12 +70,20 @@ npm run seed
      - Vercel Blob
      - Upstash Redis（KV用途）
    - 環境変数
-     - `DATABASE_URL`
-     - `BLOB_READ_WRITE_TOKEN`
-     - 任意: `EMAIL_PROVIDER`, `RESEND_API_KEY`, `RESEND_FROM`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `SES_FROM`
-3. **メール送信プロバイダ**
-   - Resend: 管理画面でAPIキー発行 → `RESEND_API_KEY` を設定
-   - SES: Verified identityを作成し `SES_FROM` を設定
+     - `DATABASE_URL`（Supabase integration または Vercel Postgres の接続文字列）
+     - `BLOB_READ_WRITE_TOKEN`（Vercel Blob integration が注入する場合はその値）
+     - `EMAIL_PROVIDER=ses`
+     - `AWS_REGION`
+     - `AWS_ACCESS_KEY_ID`
+     - `AWS_SECRET_ACCESS_KEY`
+     - `SES_FROM`（`wolvesgale0512@gmail.com`）
+   - 環境変数を保存したら **再デプロイ** を実行
+3. **AWS (SES)**
+   - 送信元アドレスを検証済みにする（`SES_FROM`）
+   - IAMユーザーを作成し、アクセスキーを発行
+     - 付与する最小権限: `ses:SendEmail`, `ses:SendRawEmail`（対象リージョン）
+   - SES が **sandbox** の場合、検証済みの送信先にしか送信できません
+     - 本番送信先へ送るには production access 申請が必要です
 
 ## Cron Jobs
 Hobbyプランは1日1回までの制限があるため日次で実行します。
