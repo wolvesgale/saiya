@@ -6,6 +6,7 @@ This app expects the production Postgres schema to match `prisma/schema.prisma`.
 
 - A **non-pooling** Supabase/Postgres connection string (direct 5432), such as `POSTGRES_URL_NON_POOLING` or `POSTGRES_PRISMA_URL`.
 - Node.js 18+ is recommended.
+- Set `DIRECT_URL` to the non-pooling connection in environments that run migrations.
 
 ## Steps (local terminal)
 
@@ -14,15 +15,17 @@ cd /workspaces/saiya
 
 # Prefer direct (non-pooling) connection
 export DATABASE_URL="$POSTGRES_URL_NON_POOLING"
+export DIRECT_URL="$POSTGRES_URL_NON_POOLING"
 # If not available, fall back to Prisma URL
 # export DATABASE_URL="$POSTGRES_PRISMA_URL"
+# export DIRECT_URL="$POSTGRES_PRISMA_URL"
 
 node -v
 npm -v
 
 npm install
 npx prisma generate --schema prisma/schema.prisma
-npx prisma db push --schema prisma/schema.prisma
+npx prisma migrate deploy --schema prisma/schema.prisma
 ```
 
 ## Verify the schema on Supabase
@@ -48,7 +51,7 @@ order by tablename;
 
 ## Fallback (manual SQL)
 
-Only if `prisma db push` cannot apply the change:
+Only if `prisma migrate deploy` cannot apply the change:
 
 ```sql
 alter table "Venue" add column if not exists "note" text;
