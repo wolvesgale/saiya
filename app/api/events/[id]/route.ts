@@ -33,6 +33,19 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     const startDate = payload.startDate ? new Date(payload.startDate) : event.startDate;
     const endDate = payload.endDate ? new Date(payload.endDate) : event.endDate;
 
+    let intermediaryId = payload.intermediaryId ?? event.intermediaryId ?? null;
+    if (payload.intermediaryId !== undefined) {
+      if (payload.intermediaryId === null || payload.intermediaryId === '') {
+        intermediaryId = null;
+      } else {
+        const intermediary = await prisma.intermediary.findUnique({ where: { id: payload.intermediaryId } });
+        if (!intermediary || intermediary.tenantId !== event.tenantId) {
+          return NextResponse.json({ message: 'Invalid intermediary' }, { status: 400 });
+        }
+        intermediaryId = intermediary.id;
+      }
+    }
+
     const updated = await prisma.event.update({
       where: { id: params.id },
       data: {
@@ -41,6 +54,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
         endDate,
         agencyId: payload.agencyId ?? event.agencyId,
         venueId: payload.venueId ?? event.venueId,
+        intermediaryId,
       },
     });
 

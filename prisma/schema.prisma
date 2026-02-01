@@ -11,7 +11,6 @@ enum UserRole {
   SUPER_ADMIN
   ADMIN
   AGENT
-  BROKER
 }
 
 enum CommissionType {
@@ -21,7 +20,11 @@ enum CommissionType {
 
 enum PartyType {
   AGENT
-  BROKER
+}
+
+enum CashHandlingType {
+  HOLD
+  TAKE_HOME
 }
 
 enum NotificationType {
@@ -42,6 +45,7 @@ model Tenant {
 
   users       User[]
   agencies    Agency[]
+  intermediaries Intermediary[]
   venues      Venue[]
   events      Event[]
   eventDays   EventDay[]
@@ -83,7 +87,6 @@ model Agency {
   id        String   @id @default(uuid())
   tenantId  String
   name      String
-  color     String?
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
 
@@ -91,6 +94,19 @@ model Agency {
   venues Venue[]
   events Event[]
   users  User[]
+  sales  Sale[]
+}
+
+model Intermediary {
+  id            String   @id @default(uuid())
+  tenantId      String
+  name          String
+  reportFormUrl String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  events Event[]
 }
 
 model Venue {
@@ -102,7 +118,7 @@ model Venue {
   phone             String?
   contactName       String?
   trashRule         String?
-  cashHandling      String?
+  cashHandling      CashHandlingType?
   notes             String?
   hours             String?
   workWindow        String?
@@ -122,15 +138,18 @@ model Event {
   tenantId      String
   agencyId      String?
   venueId       String?
+  intermediaryId String?
   title         String
   startDate     DateTime
   endDate       DateTime
   colorOverride String?
+  memo          String?
   createdAt     DateTime @default(now())
 
   tenant   Tenant @relation(fields: [tenantId], references: [id])
   agency   Agency? @relation(fields: [agencyId], references: [id])
   venue    Venue? @relation(fields: [venueId], references: [id])
+  intermediary Intermediary? @relation(fields: [intermediaryId], references: [id])
   eventDays EventDay[]
   sales    Sale[]
   accesses Access[]
@@ -153,6 +172,7 @@ model Sale {
   id              String   @id @default(uuid())
   tenantId        String
   eventId         String
+  agencyId        String
   date            DateTime
   partyType       PartyType
   amount          Float
@@ -166,6 +186,7 @@ model Sale {
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
   event  Event  @relation(fields: [eventId], references: [id])
+  agency Agency @relation(fields: [agencyId], references: [id])
   createdBy User @relation("SaleCreatedBy", fields: [createdByUserId], references: [id])
 }
 

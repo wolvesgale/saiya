@@ -37,6 +37,9 @@ export async function POST(request: Request) {
     if (roleResponse) return roleResponse;
 
     const payload = await request.json();
+    if (payload.role === 'BROKER') {
+      return NextResponse.json({ message: 'Broker role is no longer supported' }, { status: 400 });
+    }
     const tempPassword = generateTempPassword();
     const passwordHash = await hashPassword(tempPassword);
     const tenantId = user.role === 'SUPER_ADMIN' ? payload.tenantId ?? user.tenantId : user.tenantId;
