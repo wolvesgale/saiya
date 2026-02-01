@@ -27,7 +27,7 @@ npm run dev
 - `DIRECT_URL` : Supabase non-pooling (direct / 5432) など **migrate用** の接続文字列
   - 未設定の場合は `DATABASE_URL` と同じ値を設定する（`.env.example` を参照）
   - Vercelの環境変数で **空欄のまま登録** すると Prisma が落ちるため、空欄なら削除するか正しい値を設定
-  - Vercel/Supabaseでは `POSTGRES_PRISMA_URL` / `POSTGRES_URL_NON_POOLING` があれば build スクリプトが自動補完
+  - Vercel/Supabaseでは `POSTGRES_PRISMA_URL` / `POSTGRES_URL_NON_POOLING` があれば build・runtime が自動補完
 - `FILE_STORAGE_PROVIDER` : `blob`（デフォルト）/ `gdrive`
 - `BLOB_READ_WRITE_TOKEN` : Vercel BlobのRWトークン（`FILE_STORAGE_PROVIDER=blob` の場合）
 
@@ -203,6 +203,7 @@ Hobbyプランは1日1回までの制限があるため日次で実行します�
 - `DIRECT_URL` が空文字の場合もフォールバック対象。ただし `DATABASE_URL` は必須で、空ならビルドで明示的に失敗します
 - `DATABASE_URL` が未設定の場合は `POSTGRES_PRISMA_URL` / `POSTGRES_URL` / `POSTGRES_URL_NON_POOLING` の順で自動補完されます
 - `DIRECT_URL` が未設定の場合は `POSTGRES_URL_NON_POOLING` / `POSTGRES_PRISMA_URL` / `DATABASE_URL` の順で自動補完されます
+- ランタイムでも `lib/db.ts` が同じ優先順位で `DATABASE_URL` / `DIRECT_URL` を補完します
 
 ## DynamoDBへ戻す場合のチェックリスト（将来用）
 - PK/SK設計（`TENANT#{tenantId}` / `USER#{userId}`）
