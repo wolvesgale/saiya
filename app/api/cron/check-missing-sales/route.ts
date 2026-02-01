@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { getPrisma } from '@/lib/db';
 import { sendEmail } from '@/lib/email';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
+  const prisma = getPrisma();
   const today = new Date();
   const targetDate = new Date(today.toISOString().slice(0, 10));
 
