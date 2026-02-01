@@ -4,13 +4,15 @@ import { requireSession, requireRoles, errorResponse } from '@/lib/api';
 import { hashPassword } from '@/lib/auth';
 import { auditLog } from '@/lib/audit';
 
+export const runtime = 'nodejs';
+
 function generateTempPassword() {
   return Math.random().toString(36).slice(2, 10);
 }
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   try {
-    const { user, response } = await requireSession();
+    const { user, response } = await requireSession(request);
     if (response) return response;
     if (!user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     const roleResponse = requireRoles(user.role, ['SUPER_ADMIN', 'ADMIN']);

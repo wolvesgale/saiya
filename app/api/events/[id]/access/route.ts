@@ -2,9 +2,11 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireSession, errorResponse } from '@/lib/api';
 
+export const runtime = 'nodejs';
+
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   try {
-    const { user, response } = await requireSession();
+    const { user, response } = await requireSession(request);
     if (response) return response;
     if (!user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
 

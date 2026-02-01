@@ -199,7 +199,9 @@ model Attachment {
   tenantId      String
   entityType    AttachmentEntityType
   entityId      String
-  blobUrl       String
+  blobUrl       String?
+  driveFileId   String?
+  driveWebViewLink String?
   filename      String
   contentType   String
   size          Int
