@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { getPrisma } from '@/lib/db';
 import { requireSession, requireRoles, errorResponse } from '@/lib/api';
 
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: Request) {
-  const { user, response } = await requireSession();
+  const prisma = getPrisma();
+  const { user, response } = await requireSession(request);
   if (response) return response;
   if (!user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
 
@@ -18,8 +22,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const prisma = getPrisma();
   try {
-    const { user, response } = await requireSession();
+    const { user, response } = await requireSession(request);
     if (response) return response;
     if (!user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     const roleResponse = requireRoles(user.role, ['SUPER_ADMIN', 'ADMIN']);

@@ -23,8 +23,13 @@ npm run dev
 
 ## 環境変数
 ### 必須
-- `DATABASE_URL` : Postgres接続文字列（Vercel Marketplaceで作成）
-- `BLOB_READ_WRITE_TOKEN` : Vercel BlobのRWトークン
+- `DATABASE_URL` : Postgres接続文字列（Supabase / Vercel Postgresの接続文字列）
+- `FILE_STORAGE_PROVIDER` : `blob`（デフォルト）/ `gdrive`
+- `BLOB_READ_WRITE_TOKEN` : Vercel BlobのRWトークン（`FILE_STORAGE_PROVIDER=blob` の場合）
+
+### Google Driveを使う場合のみ
+- `GOOGLE_DRIVE_FOLDER_ID` : 共有フォルダID（例: `1IIgvvF-IC2cgVXh1YgGCVqqpZnPfbpN1`）
+- `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64` : サービスアカウントJSONをBase64化した文字列
 
 ### 任意（メール通知）
 - `EMAIL_PROVIDER` : `console`（開発用 / デフォルト）, `ses`
@@ -40,6 +45,13 @@ npm run dev
 
 ```bash
 npm run seed
+```
+
+## 本番DBへの反映（Vercelでは自動でseedされません）
+本番DBに初期管理者が存在しないとログインできません。Vercelの自動ビルドでは seed は実行されないため、手動で実行してください。
+```bash
+DATABASE_URL="本番の接続文字列" npx prisma migrate deploy
+DATABASE_URL="本番の接続文字列" npx prisma db seed
 ```
 
 ## 認証フロー
@@ -58,7 +70,9 @@ npm run seed
 2. VercelでImportし、環境変数を設定
 3. Postgres/Blob/Upstash RedisをVercel Marketplace経由で作成
 4. `vercel.json` に定義したCron Jobsが有効化される
-5. `Project Settings -> Environment Variables` に `DATABASE_URL` と `BLOB_READ_WRITE_TOKEN` を必ず登録
+5. `Project Settings -> Environment Variables` に `DATABASE_URL` と `FILE_STORAGE_PROVIDER` を必ず登録
+6. `FILE_STORAGE_PROVIDER=blob` の場合は `BLOB_READ_WRITE_TOKEN` を登録
+7. `FILE_STORAGE_PROVIDER=gdrive` の場合は `GOOGLE_DRIVE_FOLDER_ID` / `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64` を登録
 
 ## ユーザーが準備すること（Codex以外で実施）
 1. **GitHub**
@@ -69,9 +83,12 @@ npm run seed
      - Postgres（Neonなど）
      - Vercel Blob
      - Upstash Redis（KV用途）
-   - 環境変数
+   - 環境変数（Preview/Production 両方に同じ値を設定）
      - `DATABASE_URL`（Supabase integration または Vercel Postgres の接続文字列）
-     - `BLOB_READ_WRITE_TOKEN`（Vercel Blob integration が注入する場合はその値）
+     - `FILE_STORAGE_PROVIDER`（`blob` or `gdrive`）
+     - `BLOB_READ_WRITE_TOKEN`（`FILE_STORAGE_PROVIDER=blob` の場合）
+     - `GOOGLE_DRIVE_FOLDER_ID`（`FILE_STORAGE_PROVIDER=gdrive` の場合）
+     - `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64`（`FILE_STORAGE_PROVIDER=gdrive` の場合）
      - `EMAIL_PROVIDER=ses`
      - `AWS_REGION`
      - `AWS_ACCESS_KEY_ID`
@@ -85,6 +102,15 @@ npm run seed
    - SES が **sandbox** の場合、検証済みの送信先にしか送信できません
      - 本番送信先へ送るには production access 申請が必要です
 
+## Google Drive（gdriveを使う場合のみ）
+1. Google Cloudで **Drive API** を有効化
+2. サービスアカウントを作成し、キーJSONを発行
+3. サービスアカウントのメールアドレスを共有フォルダに **編集者** として追加
+4. JSONをBase64化して `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64` に登録
+   - 例: `base64 -i service-account.json | tr -d '\n'`
+5. `GOOGLE_DRIVE_FOLDER_ID` は共有フォルダのIDを指定
+6. 共有リンクを **public** にするのは推奨しません（Drive側の共有権限で制御）
+
 ## Cron Jobs
 Hobbyプランは1日1回までの制限があるため日次で実行します。
 - `/api/cron/check-missing-sales`
@@ -97,7 +123,7 @@ Hobbyプランは1日1回までの制限があるため日次で実行します�
 - `/api/events` : スケジュールCRUD
 - `/api/sales` : 売上入力（Agent/Broker）
 - `/api/broker/complete` : Broker完了（Agent入力ロック解除）
-- `/api/attachments/upload` : Vercel Blobへアップロード
+- `/api/attachments/upload` : Blob / Driveへアップロード（`FILE_STORAGE_PROVIDER` で切替）
 
 ## RBAC & テナント分離
 - **SuperAdmin**: 全テナント横断
@@ -112,9 +138,22 @@ Hobbyプランは1日1回までの制限があるため日次で実行します�
   - `file` (File)
   - `entityType` (VENUE / EVENT)
   - `entityId`
+  - `FILE_STORAGE_PROVIDER=blob` の場合は `blobUrl` に保存
+  - `FILE_STORAGE_PROVIDER=gdrive` の場合は `driveFileId` / `driveWebViewLink` に保存
 
 ## CORS/Preflight
 同一オリジンを前提としているため不要です。将来的にAPI Gatewayを使う場合は、CORS処理をGatewayに固定してください。
+- preflight(OPTIONS)は **API Gatewayの自動応答** に固定し、Vercel/Lambda側でOPTIONSを持たない
+- 検証curl例:
+  ```bash
+  curl -i -X OPTIONS "https://example.com/api/auth/login" \
+    -H "Origin: https://saiya.vercel.app" \
+    -H "Access-Control-Request-Method: POST" \
+    -H "Access-Control-Request-Headers: content-type, authorization"
+  ```
+
+## パスワードについて
+- パスワードは復元不可です。再設定は管理API（`/api/users/:id/reset-password`）で実施します。
 
 ## 受け入れ基準（E2E簡易チェック）
 - 初期管理者でログインできる
@@ -123,3 +162,8 @@ Hobbyプランは1日1回までの制限があるため日次で実行します�
 - Agentは編集できず、売上入力のみ
 - Broker完了がないとAgent当日売上入力が弾かれる
 - 添付がアップロードでき、Agentは削除できない
+
+## DynamoDBへ戻す場合のチェックリスト（将来用）
+- PK/SK設計（`TENANT#{tenantId}` / `USER#{userId}`）
+- ログイン参照キー（例 `USER#email`）とGSIが完全一致しているか
+- テナント跨ぎ検索が起きないか
