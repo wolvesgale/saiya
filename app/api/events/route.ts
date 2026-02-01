@@ -97,6 +97,15 @@ export async function POST(request: Request) {
       }
     }
 
+    let intermediaryId: string | null = payload.intermediaryId ?? null;
+    if (intermediaryId === '') intermediaryId = null;
+    if (intermediaryId) {
+      const intermediary = await prisma.intermediary.findUnique({ where: { id: intermediaryId } });
+      if (!intermediary || intermediary.tenantId !== tenantId) {
+        return NextResponse.json({ message: 'Invalid intermediary' }, { status: 400 });
+      }
+    }
+
     const event = await prisma.event.create({
       data: {
         tenantId,

@@ -56,6 +56,26 @@ const cashHandlingLabel = (value: string | null) => {
   return '未設定';
 };
 
+type VenueSummary = {
+  id: string;
+  name: string;
+  address: string | null;
+  phone: string | null;
+  notes: string | null;
+  hours: string | null;
+  workWindow: string | null;
+  loadInTime: string | null;
+  loadOutTime: string | null;
+};
+
+type ReportPrompt = {
+  eventId: string;
+  eventTitle: string;
+  reportFormUrl: string;
+};
+
+const reportPromptKey = (eventId: string) => `reportPromptShown:${eventId}`;
+
 export default function AgentDashboard() {
   const [events, setEvents] = useState<EventSummary[]>([]);
   const [venues, setVenues] = useState<VenueSummary[]>([]);
@@ -324,6 +344,11 @@ export default function AgentDashboard() {
             </li>
           ))}
         </ul>
+        <datalist id="time-options">
+          {timeOptions.map((option) => (
+            <option key={option} value={option} />
+          ))}
+        </datalist>
       </div>
 
       <datalist id="time-options">

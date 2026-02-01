@@ -81,6 +81,16 @@ export default function AdminDashboard() {
     return options;
   }, []);
 
+  const timeOptions = useMemo(() => {
+    const options: string[] = [];
+    for (let hour = 7; hour <= 23; hour += 1) {
+      for (let minutes = 0; minutes < 60; minutes += 15) {
+        options.push(`${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`);
+      }
+    }
+    return options;
+  }, []);
+
   const refresh = async () => {
     const [agenciesRes, usersRes, venuesRes, eventsRes, intermediariesRes] = await Promise.all([
       fetch('/api/agencies'),

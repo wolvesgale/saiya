@@ -58,6 +58,12 @@ export async function POST(request: Request) {
       if (event.agencyId !== user.agencyId) {
         return NextResponse.json({ message: 'Cannot submit sales for another agency' }, { status: 403 });
       }
+      if (event.agencyId !== user.agencyId) {
+        return NextResponse.json({ message: 'Cannot submit sales for another agency' }, { status: 403 });
+      }
+    }
+    if (!event.agencyId) {
+      return NextResponse.json({ message: 'Event agency required for sales' }, { status: 400 });
     }
     if (!event.agencyId) {
       return NextResponse.json({ message: 'Event agency required for sales' }, { status: 400 });
