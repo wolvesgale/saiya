@@ -8,6 +8,8 @@ This app expects the production Postgres schema to match `prisma/schema.prisma`.
 - Node.js 18+ is recommended.
 - Set `DIRECT_URL` to the non-pooling connection in environments that run migrations.
   - If you cannot set it, use the same value as `DATABASE_URL` (see `.env.example`).
+  - Avoid saving `DIRECT_URL` as an empty string in Vercel env vars; remove it or set a real direct URL.
+  - On Vercel/Supabase, the build script can auto-resolve `DATABASE_URL` / `DIRECT_URL` from `POSTGRES_PRISMA_URL` and `POSTGRES_URL_NON_POOLING`.
 
 ## Steps (local terminal)
 
