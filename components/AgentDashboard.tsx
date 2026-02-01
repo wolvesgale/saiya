@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 type EventSummary = {
   id: string;
@@ -14,7 +14,7 @@ type EventSummary = {
   intermediaryReportFormUrl: string | null;
   memo: string | null;
   cashHandling: string | null;
-  reportDeadline: string | null;
+  reportDeadline: string | null; // "21:00" など想定
 };
 
 type VenueSummary = {
@@ -34,7 +34,7 @@ type VenueSummary = {
 type Sale = {
   id: string;
   eventId: string;
-  date: string;
+  date: string; // ISO文字列想定
   amount: number;
 };
 
@@ -56,27 +56,25 @@ const cashHandlingLabel = (value: string | null) => {
   return '未設定';
 };
 
+// 30分刻みの候補（必要なら15分刻みに変更可）
+const timeOptions: string[] = Array.from({ length: 48 }, (_, i) => {
+  const hh = String(Math.floor(i / 2)).padStart(2, '0');
+  const mm = i % 2 === 0 ? '00' : '30';
+  return `${hh}:${mm}`;
+});
+
 export default function AgentDashboard() {
   const [events, setEvents] = useState<EventSummary[]>([]);
   const [venues, setVenues] = useState<VenueSummary[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
   const [summary, setSummary] = useState<SummaryResponse | null>(null);
+
   const [message, setMessage] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const [reportPrompt, setReportPrompt] = useState<ReportPrompt | null>(null);
+
   const [currentMonth] = useState(new Date());
   const [selectedDates, setSelectedDates] = useState<Record<string, string>>({});
-
-  // 15分刻みの時刻候補（現状 datalist のみで使用。将来 input list="time-options" にも使える）
-  const timeOptions = useMemo(() => {
-    const result: string[] = [];
-    for (let h = 0; h < 24; h += 1) {
-      for (let m = 0; m < 60; m += 15) {
-        result.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
-      }
-    }
-    return result;
-  }, []);
 
   const refresh = async () => {
     const [eventsResponse, venuesResponse, salesResponse] = await Promise.all([
@@ -100,6 +98,7 @@ export default function AgentDashboard() {
   useEffect(() => {
     refresh();
     refreshSummary();
+
     const now = new Date();
     if (now.getHours() >= 21) {
       setWarning('21時を過ぎています。未入力の売上がある場合は督促対象です。');
@@ -107,16 +106,17 @@ export default function AgentDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 業者報告ポップアップ（期限を過ぎたイベントで、未表示のものを1回だけ出す）
+  // 期限超過の業者報告ポップアップ（1イベントにつき1回だけ）
   useEffect(() => {
     if (!events.length) return;
+
     const now = new Date();
 
     const candidate = events.find((eventItem) => {
       if (!eventItem.intermediaryReportFormUrl) return false;
 
       const deadline = eventItem.reportDeadline ?? '21:00';
-      const [hours, minutes] = deadline.split(':').map((value) => Number(value));
+      const [hours, minutes] = deadline.split(':').map((v) => Number(v));
 
       const endDate = new Date(eventItem.endDate);
       const deadlineDateTime = new Date(endDate);
@@ -128,16 +128,13 @@ export default function AgentDashboard() {
       return !window.localStorage.getItem(reportPromptKey(eventItem.id));
     });
 
-    if (candidate && candidate.intermediaryReportFormUrl) {
+    if (candidate?.intermediaryReportFormUrl) {
       setReportPrompt({
         eventId: candidate.id,
         eventTitle: candidate.title,
         reportFormUrl: candidate.intermediaryReportFormUrl,
       });
-
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem(reportPromptKey(candidate.id), 'true');
-      }
+      window.localStorage.setItem(reportPromptKey(candidate.id), 'true');
     }
   }, [events]);
 
@@ -184,9 +181,7 @@ export default function AgentDashboard() {
   return (
     <div className="space-y-6">
       {warning ? (
-        <div className="bg-amber-500/10 border border-amber-500/30 text-amber-200 px-4 py-2 rounded">
-          {warning}
-        </div>
+        <div className="bg-amber-500/10 border border-amber-500/30 text-amber-200 px-4 py-2 rounded">{warning}</div>
       ) : null}
 
       {message ? (
@@ -196,20 +191,20 @@ export default function AgentDashboard() {
       {reportPrompt ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
           <div className="bg-slate-900 border border-slate-700 rounded-lg p-6 max-w-md w-full space-y-4">
-            <h3 className="text-lg font-semibold text-slate-100">業者報告が必要です</h3>
+            <h3 className="text-lg font-semibold">業者報告が必要です</h3>
             <p className="text-sm text-slate-300">
               {reportPrompt.eventTitle} の仲介業者報告が必要です。こちらのフォームから報告してください。
             </p>
             <div className="flex flex-col gap-2">
               <a
-                className="bg-indigo-500 hover:bg-indigo-400 text-white text-center py-2 rounded"
+                className="bg-indigo-500 text-white text-center py-2 rounded"
                 href={reportPrompt.reportFormUrl}
                 target="_blank"
                 rel="noreferrer"
               >
                 フォームを開く
               </a>
-              <button className="text-slate-300 text-sm hover:text-slate-100" onClick={() => setReportPrompt(null)}>
+              <button className="text-slate-300 text-sm" onClick={() => setReportPrompt(null)}>
                 後で確認する
               </button>
             </div>
@@ -218,17 +213,20 @@ export default function AgentDashboard() {
       ) : null}
 
       <div className="bg-slate-900/70 border border-slate-800 p-6 rounded-lg">
-        <h2 className="text-lg font-semibold mb-2 text-slate-100">今月の累計売上</h2>
+        <h2 className="text-lg font-semibold mb-2">今月の累計売上</h2>
         <div className="text-2xl font-semibold text-indigo-200">{monthlyTotal.toLocaleString()} 円</div>
       </div>
 
       <div className="bg-slate-900/70 border border-slate-800 p-6 rounded-lg">
-        <h2 className="text-lg font-semibold mb-4 text-slate-100">イベント一覧</h2>
+        <h2 className="text-lg font-semibold mb-4">イベント一覧</h2>
+
         <ul className="text-sm text-slate-300 space-y-4">
           {events.map((eventItem) => {
             const eventSales = sales.filter((sale) => sale.eventId === eventItem.id);
             const selectedDate = selectedDates[eventItem.id] ?? '';
-            const isLocked = selectedDate ? eventSales.some((sale) => sale.date.slice(0, 10) === selectedDate) : false;
+            const isLocked = selectedDate
+              ? eventSales.some((sale) => sale.date.slice(0, 10) === selectedDate)
+              : false;
 
             return (
               <li key={eventItem.id} className="border border-slate-800 rounded p-4 space-y-3">
@@ -241,12 +239,12 @@ export default function AgentDashboard() {
                     {eventItem.agencyName ?? '代理店未設定'} / {eventItem.venueName ?? '会場未設定'}
                   </div>
                   <div className="text-xs text-slate-400">仲介業者: {eventItem.intermediaryName ?? '未設定'}</div>
-                  <div className="text-xs text-slate-400">
-                    売上金預かり: {cashHandlingLabel(eventItem.cashHandling)}
-                  </div>
+                  <div className="text-xs text-slate-400">売上金預かり: {cashHandlingLabel(eventItem.cashHandling)}</div>
                 </div>
 
-                <div className="text-xs text-slate-400 whitespace-pre-wrap">{eventItem.memo || '共有メモはまだありません。'}</div>
+                <div className="text-xs text-slate-400 whitespace-pre-wrap">
+                  {eventItem.memo || '共有メモはまだありません。'}
+                </div>
 
                 <form
                   className="space-y-2"
@@ -262,16 +260,14 @@ export default function AgentDashboard() {
                       メモ追記（代理店のみ）
                     </label>
                     <textarea
+                      className="w-full bg-slate-950/40 border border-slate-700 rounded px-3 py-2 text-slate-100"
                       id={`memo-${eventItem.id}`}
                       name="memo"
                       rows={2}
                       required
-                      className="w-full bg-slate-950 text-slate-100 border border-slate-700 rounded px-3 py-2"
                     />
                   </div>
-                  <button className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded" type="submit">
-                    追記する
-                  </button>
+                  <button className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded">追記する</button>
                 </form>
 
                 <form
@@ -284,34 +280,36 @@ export default function AgentDashboard() {
                     handleSalesSubmit(eventItem.id, date, amount, () => formEvent.currentTarget.reset());
                   }}
                 >
-                  <div className="space-y-1">
-                    <label className="text-xs text-slate-300" htmlFor={`sales-date-${eventItem.id}`}>
-                      売上日付
-                    </label>
-                    <input
-                      id={`sales-date-${eventItem.id}`}
-                      name="date"
-                      type="date"
-                      required
-                      value={selectedDate}
-                      onChange={(eventData) =>
-                        setSelectedDates((prev) => ({ ...prev, [eventItem.id]: eventData.target.value }))
-                      }
-                      className="w-full bg-slate-950 text-slate-100 border border-slate-700 rounded px-3 py-2"
-                    />
-                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-xs text-slate-300" htmlFor={`sales-date-${eventItem.id}`}>
+                        売上日付
+                      </label>
+                      <input
+                        className="w-full bg-slate-950/40 border border-slate-700 rounded px-3 py-2 text-slate-100"
+                        id={`sales-date-${eventItem.id}`}
+                        name="date"
+                        type="date"
+                        required
+                        value={selectedDate}
+                        onChange={(eventData) =>
+                          setSelectedDates((prev) => ({ ...prev, [eventItem.id]: eventData.target.value }))
+                        }
+                      />
+                    </div>
 
-                  <div className="space-y-1">
-                    <label className="text-xs text-slate-300" htmlFor={`sales-amount-${eventItem.id}`}>
-                      日次売上額
-                    </label>
-                    <input
-                      id={`sales-amount-${eventItem.id}`}
-                      name="amount"
-                      type="number"
-                      required
-                      className="w-full bg-slate-950 text-slate-100 border border-slate-700 rounded px-3 py-2"
-                    />
+                    <div className="space-y-1">
+                      <label className="text-xs text-slate-300" htmlFor={`sales-amount-${eventItem.id}`}>
+                        日次売上額
+                      </label>
+                      <input
+                        className="w-full bg-slate-950/40 border border-slate-700 rounded px-3 py-2 text-slate-100"
+                        id={`sales-amount-${eventItem.id}`}
+                        name="amount"
+                        type="number"
+                        required
+                      />
+                    </div>
                   </div>
 
                   <div className="text-xs text-slate-400">
@@ -320,11 +318,7 @@ export default function AgentDashboard() {
 
                   {isLocked ? <div className="text-xs text-rose-300">この日付は入力済みのため編集できません。</div> : null}
 
-                  <button
-                    className="bg-indigo-500 hover:bg-indigo-400 text-white px-3 py-2 rounded disabled:opacity-50"
-                    disabled={isLocked}
-                    type="submit"
-                  >
+                  <button className="bg-indigo-500 hover:bg-indigo-400 text-white px-3 py-2 rounded" disabled={isLocked}>
                     売上を登録
                   </button>
                 </form>
@@ -335,7 +329,8 @@ export default function AgentDashboard() {
       </div>
 
       <div className="bg-slate-900/70 border border-slate-800 p-6 rounded-lg">
-        <h2 className="text-lg font-semibold mb-4 text-slate-100">会場一覧</h2>
+        <h2 className="text-lg font-semibold mb-4">会場一覧</h2>
+
         <ul className="text-sm text-slate-300 space-y-4">
           {venues.map((venue) => (
             <li key={venue.id} className="border border-slate-800 rounded p-4 space-y-1">
@@ -348,8 +343,9 @@ export default function AgentDashboard() {
               <div className="text-xs text-slate-400">作業可能: {venue.workWindow ?? '未登録'}</div>
               <div className="text-xs text-slate-400">搬入: {venue.loadInTime ?? '未登録'}</div>
               <div className="text-xs text-slate-400">搬出: {venue.loadOutTime ?? '未登録'}</div>
+
               {venue.attachmentUrl ? (
-                <a className="text-xs text-indigo-300 hover:text-indigo-200" href={venue.attachmentUrl} target="_blank" rel="noreferrer">
+                <a className="text-xs text-indigo-300" href={venue.attachmentUrl} target="_blank" rel="noreferrer">
                   資料を見る
                 </a>
               ) : null}
