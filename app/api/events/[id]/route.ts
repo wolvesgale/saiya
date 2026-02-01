@@ -110,35 +110,39 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   const prisma = getPrisma();
-  const { user, response } = await requireSession(request);
-  if (response) return response;
-  if (!user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+  try {
+    const { user, response } = await requireSession(request);
+    if (response) return response;
+    if (!user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
 
-  const event = await prisma.event.findUnique({
-    where: { id: params.id },
-    include: { agency: true, venue: true, intermediary: true },
-  });
-  if (!event) return NextResponse.json({ message: 'Not found' }, { status: 404 });
-  if (user.role !== 'SUPER_ADMIN' && event.tenantId !== user.tenantId) {
-    return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    const event = await prisma.event.findUnique({
+      where: { id: params.id },
+      include: { agency: true, venue: true, intermediary: true },
+    });
+    if (!event) return NextResponse.json({ message: 'Not found' }, { status: 404 });
+    if (user.role !== 'SUPER_ADMIN' && event.tenantId !== user.tenantId) {
+      return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    }
+
+    return NextResponse.json({
+      id: event.id,
+      title: event.title,
+      startDate: event.startDate.toISOString().slice(0, 10),
+      endDate: event.endDate.toISOString().slice(0, 10),
+      agencyId: event.agencyId,
+      agencyName: event.agency?.name ?? null,
+      venueId: event.venueId,
+      venueName: event.venue?.name ?? null,
+      intermediaryId: event.intermediaryId ?? null,
+      intermediaryName: event.intermediary?.name ?? null,
+      intermediaryReportFormUrl: event.intermediary?.reportFormUrl ?? null,
+      memo: event.memo ?? null,
+      cashHandling: event.cashHandling ?? event.venue?.cashHandling ?? null,
+      reportDeadline: event.reportDeadline ?? null,
+    });
+  } catch (error) {
+    return errorResponse(error);
   }
-
-  return NextResponse.json({
-    id: event.id,
-    title: event.title,
-    startDate: event.startDate.toISOString().slice(0, 10),
-    endDate: event.endDate.toISOString().slice(0, 10),
-    agencyId: event.agencyId,
-    agencyName: event.agency?.name ?? null,
-    venueId: event.venueId,
-    venueName: event.venue?.name ?? null,
-    intermediaryId: event.intermediaryId ?? null,
-    intermediaryName: event.intermediary?.name ?? null,
-    intermediaryReportFormUrl: event.intermediary?.reportFormUrl ?? null,
-    memo: event.memo ?? null,
-    cashHandling: event.cashHandling ?? event.venue?.cashHandling ?? null,
-    reportDeadline: event.reportDeadline ?? null,
-  });
 }
 
 export async function DELETE(request: Request, { params }: { params: { id: string } }) {
