@@ -8,8 +8,6 @@ import { Readable } from 'stream';
 
 export const runtime = 'nodejs';
 
-export const runtime = 'nodejs';
-
 export async function POST(request: Request) {
   try {
     const { user, response } = await requireSession();
