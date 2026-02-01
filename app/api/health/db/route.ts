@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/db';
+import { getPrisma, getXruleTenantId } from '@/lib/db';
 import { errorResponse } from '@/lib/api';
 
 export const runtime = 'nodejs';
@@ -35,10 +35,20 @@ export async function GET() {
       console.warn('[health.db] _prisma_migrations unavailable', migrationError);
     }
 
+    let xruleTenantId: string | null = null;
+    let xruleTenantError: string | null = null;
+    try {
+      xruleTenantId = await getXruleTenantId(prisma);
+    } catch (tenantError) {
+      xruleTenantError = tenantError instanceof Error ? tenantError.message : 'Unknown error';
+    }
+
     return NextResponse.json({
       ok: true,
       connection: dbInfoRows[0] ?? null,
       latestMigration,
+      xruleTenantId,
+      xruleTenantError,
     });
   } catch (error) {
     console.error('[health.db] error', error);

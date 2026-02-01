@@ -10,6 +10,7 @@ This app expects the production Postgres schema to match `prisma/schema.prisma`.
   - If you cannot set it, use the same value as `DATABASE_URL` (see `.env.example`).
   - Avoid saving `DIRECT_URL` as an empty string in Vercel env vars; remove it or set a real direct URL.
   - On Vercel/Supabase, the build script and runtime can auto-resolve `DATABASE_URL` / `DIRECT_URL` from `POSTGRES_PRISMA_URL` and `POSTGRES_URL_NON_POOLING`.
+- For single-tenant setups, `XRULE_TENANT_ID` can be set to skip DB lookup of the Xrule tenant.
 
 ## Steps (local terminal)
 

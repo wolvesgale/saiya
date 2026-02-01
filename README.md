@@ -28,6 +28,7 @@ npm run dev
   - 未設定の場合は `DATABASE_URL` と同じ値を設定する（`.env.example` を参照）
   - Vercelの環境変数で **空欄のまま登録** すると Prisma が落ちるため、空欄なら削除するか正しい値を設定
   - Vercel/Supabaseでは `POSTGRES_PRISMA_URL` / `POSTGRES_URL_NON_POOLING` があれば build・runtime が自動補完
+- `XRULE_TENANT_ID` : 任意（単一テナント運用の固定テナントID。未設定ならDBから `Tenant.name = 'Xrule'` を解決）
 - `FILE_STORAGE_PROVIDER` : `blob`（デフォルト）/ `gdrive`
 - `BLOB_READ_WRITE_TOKEN` : Vercel BlobのRWトークン（`FILE_STORAGE_PROVIDER=blob` の場合）
 
@@ -84,6 +85,7 @@ DATABASE_URL="Pooler接続文字列" DIRECT_URL="Direct接続文字列" npx pris
 6. `FILE_STORAGE_PROVIDER=blob` の場合は `BLOB_READ_WRITE_TOKEN` を登録
 7. `FILE_STORAGE_PROVIDER=gdrive` の場合は `GOOGLE_DRIVE_FOLDER_ID` / `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64` を登録
 8. Build Command を `npm run vercel-build` に設定し、migrate deploy を自動実行する
+9. 単一テナント運用の場合、`XRULE_TENANT_ID` を設定して tenant 解決を確実にする（任意）
 
 ## ユーザーが準備すること（Codex以外で実施）
 1. **GitHub**

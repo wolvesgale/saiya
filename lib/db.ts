@@ -55,3 +55,18 @@ export function getPrisma() {
   }
   return globalThis.__prisma;
 }
+
+export async function getXruleTenantId(prisma: PrismaClient) {
+  if (process.env.XRULE_TENANT_ID && process.env.XRULE_TENANT_ID.length > 0) {
+    console.info('[tenant] Using XRULE_TENANT_ID from environment.');
+    return process.env.XRULE_TENANT_ID;
+  }
+
+  const tenant = await prisma.tenant.findUnique({ where: { name: 'Xrule' } });
+  if (!tenant) {
+    throw new Error('Tenant Xrule not found. Super Admin must create the initial tenant.');
+  }
+
+  console.info('[tenant] Resolved Xrule tenant from database.');
+  return tenant.id;
+}

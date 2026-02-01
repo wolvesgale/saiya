@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/db';
+import { getPrisma, getXruleTenantId } from '@/lib/db';
 import { requireSession, requireRoles, errorResponse } from '@/lib/api';
 import { hashPassword } from '@/lib/auth';
 
@@ -16,7 +16,8 @@ export async function GET(request: Request) {
     if (roleResponse) return roleResponse;
 
     const url = new URL(request.url);
-    const tenantId = user.role === 'SUPER_ADMIN' ? url.searchParams.get('tenantId') ?? undefined : user.tenantId ?? undefined;
+    const requestedTenantId = url.searchParams.get('tenantId') ?? undefined;
+    const tenantId = requestedTenantId ?? (await getXruleTenantId(prisma));
 
     const agencies = await prisma.agency.findMany({
       where: tenantId ? { tenantId } : {},
@@ -38,29 +39,34 @@ export async function POST(request: Request) {
     if (roleResponse) return roleResponse;
 
     const payload = await request.json();
-    const tenantId = user.role === 'SUPER_ADMIN' ? payload.tenantId ?? user.tenantId : user.tenantId;
+    const name = payload.name?.toString().trim();
+    const email = payload.email?.toString().trim();
+    const requestedTenantId = payload.tenantId?.toString() || undefined;
+    const tenantId = requestedTenantId ?? (await getXruleTenantId(prisma));
     const validationErrors: Array<{ field: string; message: string }> = [];
     if (!tenantId) {
       validationErrors.push({ field: 'tenantId', message: 'Tenant required' });
     }
-    if (!payload.name) {
+    if (!name) {
       validationErrors.push({ field: 'name', message: 'Name required' });
     }
-    if (!payload.email) {
+    if (!email) {
       validationErrors.push({ field: 'email', message: 'Email required' });
+    } else if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      validationErrors.push({ field: 'email', message: 'Email is invalid' });
     }
     if (validationErrors.length > 0) {
       return NextResponse.json({ error: 'validation', details: validationErrors }, { status: 400 });
     }
 
-    const password = payload.password?.toString() || 'initpass';
+    const password = payload.initialPassword?.toString() || payload.password?.toString() || 'initpass';
     const passwordHash = await hashPassword(password);
 
     const agency = await prisma.agency.create({
       data: {
         tenantId,
-        name: payload.name,
-        email: payload.email,
+        name,
+        email,
         shopName: payload.shopName ?? null,
         passwordHash,
       },
