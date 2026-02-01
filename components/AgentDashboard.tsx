@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 type EventSummary = {
   id: string;
@@ -55,6 +55,65 @@ const cashHandlingLabel = (value: string | null) => {
   if (value === 'TAKE_HOME') return '持ち帰り';
   return '未設定';
 };
+
+type VenueSummary = {
+  id: string;
+  name: string;
+  address: string | null;
+  note: string | null;
+  attachmentUrl: string | null;
+  cashHandling: string | null;
+  notes: string | null;
+  hours: string | null;
+  workWindow: string | null;
+  loadInTime: string | null;
+  loadOutTime: string | null;
+};
+
+type Sale = {
+  id: string;
+  eventId: string;
+  date: string;
+  amount: number;
+};
+
+type SummaryResponse = {
+  agencyTotals: Record<string, number>;
+};
+
+type ReportPrompt = {
+  eventId: string;
+  eventTitle: string;
+  reportFormUrl: string;
+};
+
+const reportPromptKey = (eventId: string) => `reportPromptShown:${eventId}`;
+
+const cashHandlingLabel = (value: string | null) => {
+  if (value === 'HOLD') return '預かり';
+  if (value === 'TAKE_HOME') return '持ち帰り';
+  return '未設定';
+};
+
+type VenueSummary = {
+  id: string;
+  name: string;
+  address: string | null;
+  phone: string | null;
+  notes: string | null;
+  hours: string | null;
+  workWindow: string | null;
+  loadInTime: string | null;
+  loadOutTime: string | null;
+};
+
+type ReportPrompt = {
+  eventId: string;
+  eventTitle: string;
+  reportFormUrl: string;
+};
+
+const reportPromptKey = (eventId: string) => `reportPromptShown:${eventId}`;
 
 export default function AgentDashboard() {
   const [events, setEvents] = useState<EventSummary[]>([]);
@@ -314,6 +373,11 @@ export default function AgentDashboard() {
             </li>
           ))}
         </ul>
+        <datalist id="time-options">
+          {timeOptions.map((option) => (
+            <option key={option} value={option} />
+          ))}
+        </datalist>
       </div>
 
     </div>
