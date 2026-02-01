@@ -7,6 +7,7 @@ This app expects the production Postgres schema to match `prisma/schema.prisma`.
 - A **non-pooling** Supabase/Postgres connection string (direct 5432), such as `POSTGRES_URL_NON_POOLING` or `POSTGRES_PRISMA_URL`.
 - Node.js 18+ is recommended.
 - Set `DIRECT_URL` to the non-pooling connection in environments that run migrations.
+  - If you cannot set it, use the same value as `DATABASE_URL` (see `.env.example`).
 
 ## Steps (local terminal)
 

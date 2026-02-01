@@ -25,6 +25,7 @@ npm run dev
 ### 必須
 - `DATABASE_URL` : Supabase Pooler (pgbouncer / 6543) など **ランタイム用** の接続文字列
 - `DIRECT_URL` : Supabase non-pooling (direct / 5432) など **migrate用** の接続文字列
+  - 未設定の場合は `DATABASE_URL` と同じ値を設定する（`.env.example` を参照）
 - `FILE_STORAGE_PROVIDER` : `blob`（デフォルト）/ `gdrive`
 - `BLOB_READ_WRITE_TOKEN` : Vercel BlobのRWトークン（`FILE_STORAGE_PROVIDER=blob` の場合）
 
@@ -196,6 +197,7 @@ Hobbyプランは1日1回までの制限があるため日次で実行します�
 ### Vercel用の接続設定
 - `DATABASE_URL` は Pooler (pgbouncer) を使う（ランタイム用）
 - `DIRECT_URL` は non-pooling (direct / 5432) を使う（migrate用）
+- `DIRECT_URL` を設定できない場合は `DATABASE_URL` と同じ値を設定する（ビルドスクリプトでフォールバック）
 
 ## DynamoDBへ戻す場合のチェックリスト（将来用）
 - PK/SK設計（`TENANT#{tenantId}` / `USER#{userId}`）
