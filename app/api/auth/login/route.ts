@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { createSession, verifyPassword } from '@/lib/auth';
 
+export const runtime = 'nodejs';
+
 export async function POST(request: Request) {
   const { email, password } = await request.json();
   if (!email || !password) {

@@ -3,6 +3,9 @@ import { prisma } from '@/lib/db';
 import { getSessionUser, hashPassword } from '@/lib/auth';
 import { auditLog } from '@/lib/audit';
 
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: Request) {
   const user = await getSessionUser();
   if (!user) {
