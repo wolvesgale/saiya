@@ -6,7 +6,7 @@ import { auditLog } from '@/lib/audit';
 export const runtime = 'nodejs';
 
 export async function GET(request: Request) {
-  const { user, response } = await requireSession();
+  const { user, response } = await requireSession(request);
   if (response) return response;
   if (!user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
   const url = new URL(request.url);
@@ -21,7 +21,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const { user, response } = await requireSession();
+    const { user, response } = await requireSession(request);
     if (response) return response;
     if (!user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     const roleResponse = requireRoles(user.role, ['SUPER_ADMIN', 'ADMIN', 'AGENT', 'BROKER']);

@@ -5,7 +5,7 @@ import { requireSession } from '@/lib/api';
 export const runtime = 'nodejs';
 
 export async function GET(request: Request) {
-  const { user, response } = await requireSession();
+  const { user, response } = await requireSession(request);
   if (response) return response;
   if (!user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
   const url = new URL(request.url);

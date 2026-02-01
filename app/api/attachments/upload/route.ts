@@ -3,14 +3,13 @@ import { put } from '@vercel/blob';
 import { prisma } from '@/lib/db';
 import { requireSession, requireRoles, errorResponse } from '@/lib/api';
 import { AttachmentEntityType } from '@prisma/client';
-import { google } from 'googleapis';
 import { Readable } from 'stream';
 
 export const runtime = 'nodejs';
 
 export async function POST(request: Request) {
   try {
-    const { user, response } = await requireSession();
+    const { user, response } = await requireSession(request);
     if (response) return response;
     if (!user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     const roleResponse = requireRoles(user.role, ['SUPER_ADMIN', 'ADMIN']);
@@ -57,6 +56,7 @@ export async function POST(request: Request) {
         return errorResponse(parseError);
       }
 
+      const { google } = await (0, eval)('import("googleapis")');
       const auth = new google.auth.GoogleAuth({
         credentials,
         scopes: ['https://www.googleapis.com/auth/drive'],

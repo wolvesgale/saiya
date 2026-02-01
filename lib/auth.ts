@@ -55,9 +55,7 @@ export async function clearSession() {
   });
 }
 
-export async function getSessionUser(): Promise<SessionUser | null> {
-  const token = cookies().get(SESSION_COOKIE)?.value;
-  if (!token) return null;
+export async function getSessionUserFromToken(token: string): Promise<SessionUser | null> {
   const session = await prisma.session.findUnique({
     where: { id: token },
     include: { user: true },
@@ -74,6 +72,12 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     mustChangePassword: user.mustChangePassword,
     agencyId: user.agencyId,
   };
+}
+
+export async function getSessionUser(): Promise<SessionUser | null> {
+  const token = cookies().get(SESSION_COOKIE)?.value;
+  if (!token) return null;
+  return getSessionUserFromToken(token);
 }
 
 export async function verifyPassword(password: string, hash: string) {

@@ -16,7 +16,7 @@ function buildDays(start: Date, end: Date) {
 
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
   try {
-    const { user, response } = await requireSession();
+    const { user, response } = await requireSession(request);
     if (response) return response;
     if (!user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     const roleResponse = requireRoles(user.role, ['SUPER_ADMIN', 'ADMIN']);
@@ -61,7 +61,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 
 export async function DELETE(request: Request, { params }: { params: { id: string } }) {
   try {
-    const { user, response } = await requireSession();
+    const { user, response } = await requireSession(request);
     if (response) return response;
     if (!user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     const roleResponse = requireRoles(user.role, ['SUPER_ADMIN', 'ADMIN']);
