@@ -36,9 +36,10 @@ export async function POST(request: Request) {
     const venue = await prisma.venue.create({
       data: {
         tenantId,
-        agencyId: payload.agencyId ?? null,
         name: payload.name,
         address: payload.address ?? null,
+        note: payload.note ?? null,
+        attachmentUrl: payload.attachmentUrl ?? null,
         phone: payload.phone ?? null,
         contactName: payload.contactName ?? null,
         trashRule: payload.trashRule ?? null,

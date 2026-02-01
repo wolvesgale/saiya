@@ -1,14 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getPrisma } from '@/lib/db';
 import { requireSession, requireRoles, errorResponse } from '@/lib/api';
-import { hashPassword } from '@/lib/auth';
-import { auditLog } from '@/lib/audit';
 
 export const runtime = 'nodejs';
-
-function generateTempPassword() {
-  return Math.random().toString(36).slice(2, 10);
-}
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   const prisma = getPrisma();
@@ -19,19 +14,11 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const tenantId = user.role === 'SUPER_ADMIN' ? url.searchParams.get('tenantId') ?? undefined : user.tenantId ?? undefined;
 
-  if (user.role === 'AGENT' && !user.agencyId) {
-    return NextResponse.json([]);
-  }
-
-  const users = await prisma.user.findMany({
-    where: {
-      ...(tenantId ? { tenantId } : {}),
-      ...(user.role === 'AGENT' ? { agencyId: user.agencyId ?? undefined } : {}),
-    },
+  const intermediaries = await prisma.intermediary.findMany({
+    where: tenantId ? { tenantId } : {},
     orderBy: { createdAt: 'desc' },
-    select: { id: true, email: true, role: true, isActive: true, tenantId: true, agencyId: true },
   });
-  return NextResponse.json(users);
+  return NextResponse.json(intermediaries);
 }
 
 export async function POST(request: Request) {
@@ -44,31 +31,23 @@ export async function POST(request: Request) {
     if (roleResponse) return roleResponse;
 
     const payload = await request.json();
-    if (payload.role === 'BROKER') {
-      return NextResponse.json({ message: 'Broker role is no longer supported' }, { status: 400 });
-    }
-    const tempPassword = generateTempPassword();
-    const passwordHash = await hashPassword(tempPassword);
     const tenantId = user.role === 'SUPER_ADMIN' ? payload.tenantId ?? user.tenantId : user.tenantId;
     if (!tenantId) {
       return NextResponse.json({ message: 'Tenant required' }, { status: 400 });
     }
+    if (!payload.name) {
+      return NextResponse.json({ message: 'Name is required' }, { status: 400 });
+    }
 
-    const created = await prisma.user.create({
+    const intermediary = await prisma.intermediary.create({
       data: {
-        email: payload.email,
-        passwordHash,
-        role: payload.role,
-        isActive: true,
-        mustChangePassword: true,
         tenantId,
-        agencyId: payload.agencyId ?? null,
+        name: payload.name,
+        reportFormUrl: payload.reportFormUrl ?? null,
       },
     });
 
-    auditLog('user.created', { userId: created.id, createdBy: user.id });
-
-    return NextResponse.json({ id: created.id, tempPassword });
+    return NextResponse.json(intermediary, { status: 201 });
   } catch (error) {
     return errorResponse(error);
   }
