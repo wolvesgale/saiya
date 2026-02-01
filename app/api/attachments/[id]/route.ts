@@ -4,6 +4,8 @@ import { requireSession, requireRoles, errorResponse } from '@/lib/api';
 import { auditLog } from '@/lib/audit';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function DELETE(request: Request, { params }: { params: { id: string } }) {
   const prisma = getPrisma();
