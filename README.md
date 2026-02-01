@@ -27,6 +27,12 @@ npm run dev
 - `FILE_STORAGE_PROVIDER` : `blob`（デフォルト）/ `gdrive`
 - `BLOB_READ_WRITE_TOKEN` : Vercel BlobのRWトークン（`FILE_STORAGE_PROVIDER=blob` の場合）
 
+### Google Sheets（売上連携）
+- `GOOGLE_SHEETS_ID` : `1BcUh6QbeJoSxCdSfbabvTi1dlJ05ifVJ`
+- `GOOGLE_SERVICE_ACCOUNT_JSON` : サービスアカウントJSONをBase64化した文字列
+- `GOOGLE_SHEETS_SCOPE` : `https://www.googleapis.com/auth/spreadsheets`（任意）
+- `SHEET_MONTHLY_SALES_NAME` : `2025年度 XRule 月間売上報告(1月)` など、対象月のシート名
+
 ### Google Driveを使う場合のみ
 - `GOOGLE_DRIVE_FOLDER_ID` : 共有フォルダID（例: `1IIgvvF-IC2cgVXh1YgGCVqqpZnPfbpN1`）
 - `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64` : サービスアカウントJSONをBase64化した文字列
@@ -87,6 +93,9 @@ DATABASE_URL="本番の接続文字列" npx prisma db seed
      - `DATABASE_URL`（Supabase integration または Vercel Postgres の接続文字列）
      - `FILE_STORAGE_PROVIDER`（`blob` or `gdrive`）
      - `BLOB_READ_WRITE_TOKEN`（`FILE_STORAGE_PROVIDER=blob` の場合）
+     - `GOOGLE_SHEETS_ID`
+     - `GOOGLE_SERVICE_ACCOUNT_JSON`
+     - `SHEET_MONTHLY_SALES_NAME`
      - `GOOGLE_DRIVE_FOLDER_ID`（`FILE_STORAGE_PROVIDER=gdrive` の場合）
      - `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64`（`FILE_STORAGE_PROVIDER=gdrive` の場合）
      - `EMAIL_PROVIDER=ses`
@@ -118,18 +127,18 @@ Hobbyプランは1日1回までの制限があるため日次で実行します�
 
 ## API概要
 - `/api/agencies` : 代理店CRUD
-- `/api/users` : ユーザーCRUD（Admin/Agent/Broker）
+- `/api/users` : ユーザーCRUD（Admin/Agent）
+- `/api/intermediaries` : 仲介業者CRUD
 - `/api/venues` : 会場CRUD
 - `/api/events` : スケジュールCRUD
-- `/api/sales` : 売上入力（Agent/Broker）
-- `/api/broker/complete` : Broker完了（Agent入力ロック解除）
+- `/api/sales` : 売上入力（Agent）
+- `/api/sales/summary` : 月次売上集計（Admin/Agent）
 - `/api/attachments/upload` : Blob / Driveへアップロード（`FILE_STORAGE_PROVIDER` で切替）
 
 ## RBAC & テナント分離
 - **SuperAdmin**: 全テナント横断
 - **Admin**: 自テナント内フル権限
-- **Agent**: 閲覧 + 売上入力 + メモ追記のみ
-- **Broker**: 当日完了のみ
+- **Agent**: 会場/イベント閲覧 + 売上入力 + メモ追記のみ
 
 すべてのAPIで `tenantId` フィルタを適用し、SuperAdminのみ例外です。
 
@@ -159,9 +168,27 @@ Hobbyプランは1日1回までの制限があるため日次で実行します�
 - 初期管理者でログインできる
 - Xruleテナントが存在する
 - Adminがユーザー/代理店/会場/スケジュールを作成できる
-- Agentは編集できず、売上入力のみ
-- Broker完了がないとAgent当日売上入力が弾かれる
+- Agentは会場/イベント閲覧と売上入力のみ
+- 売上入力がGoogle Sheetsに連携される
 - 添付がアップロードでき、Agentは削除できない
+
+## 代理店管理（Agency）
+- 代理店の追加項目: `email`, `shopName`, `password`（未指定の場合は `initpass`）
+- Adminのみ作成/編集可能
+
+## Google Sheets 連携設定
+1. Google Cloudで **Service Account** を作成し、スプレッドシートAPIを有効化
+2. サービスアカウントのキーJSONを発行し、Base64化して `GOOGLE_SERVICE_ACCOUNT_JSON` に設定
+   - 例: `base64 -i service-account.json | tr -d '\n'`
+3. 対象スプレッドシートにサービスアカウントのメールを **編集者** で共有
+4. `GOOGLE_SHEETS_ID` にスプレッドシートIDを設定
+5. 対象月のシート名を `SHEET_MONTHLY_SALES_NAME` に設定（例: `2025年度 XRule 月間売上報告(1月)`）
+6. セルマッピングは `lib/googleSheets.ts` の `SHEET_BLOCKS` で集約管理しています（J4/P4/J14/P14 ブロックを基準に書き込み）。
+
+## Prisma反映手順
+- 開発環境: `npx prisma migrate dev`
+- 本番環境: `npx prisma migrate deploy`
+- 確認のみ: `npx prisma db push`
 
 ## DynamoDBへ戻す場合のチェックリスト（将来用）
 - PK/SK設計（`TENANT#{tenantId}` / `USER#{userId}`）

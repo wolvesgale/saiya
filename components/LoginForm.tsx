@@ -38,15 +38,11 @@ export default function LoginForm() {
       router.push('/admin');
       return;
     }
-    if (payload.role === 'BROKER') {
-      router.push('/broker');
-      return;
-    }
     router.push('/agent');
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 bg-white p-6 rounded shadow-sm">
+    <form onSubmit={handleSubmit} className="space-y-4 bg-slate-900/80 border border-slate-800 p-6 rounded-lg">
       <div>
         <label htmlFor="email">メールアドレス</label>
         <input id="email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
@@ -55,10 +51,10 @@ export default function LoginForm() {
         <label htmlFor="password">パスワード</label>
         <input id="password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required />
       </div>
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      {error ? <p className="text-sm text-rose-300">{error}</p> : null}
       <button
         type="submit"
-        className="bg-slate-900 text-white w-full"
+        className="bg-indigo-500 text-white w-full"
         disabled={loading}
       >
         {loading ? 'ログイン中...' : 'ログイン'}
