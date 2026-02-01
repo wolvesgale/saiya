@@ -8,20 +8,24 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   const prisma = getPrisma();
-  const { user, response } = await requireSession(request);
-  if (response) return response;
-  if (!user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
-  const roleResponse = requireRoles(user.role, ['SUPER_ADMIN', 'ADMIN']);
-  if (roleResponse) return roleResponse;
+  try {
+    const { user, response } = await requireSession(request);
+    if (response) return response;
+    if (!user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+    const roleResponse = requireRoles(user.role, ['SUPER_ADMIN', 'ADMIN']);
+    if (roleResponse) return roleResponse;
 
-  const url = new URL(request.url);
-  const tenantId = user.role === 'SUPER_ADMIN' ? url.searchParams.get('tenantId') ?? undefined : user.tenantId ?? undefined;
+    const url = new URL(request.url);
+    const tenantId = user.role === 'SUPER_ADMIN' ? url.searchParams.get('tenantId') ?? undefined : user.tenantId ?? undefined;
 
-  const agencies = await prisma.agency.findMany({
-    where: tenantId ? { tenantId } : {},
-    orderBy: { createdAt: 'desc' },
-  });
-  return NextResponse.json(agencies);
+    const agencies = await prisma.agency.findMany({
+      where: tenantId ? { tenantId } : {},
+      orderBy: { createdAt: 'desc' },
+    });
+    return NextResponse.json(agencies);
+  } catch (error) {
+    return errorResponse(error);
+  }
 }
 
 export async function POST(request: Request) {
@@ -35,11 +39,18 @@ export async function POST(request: Request) {
 
     const payload = await request.json();
     const tenantId = user.role === 'SUPER_ADMIN' ? payload.tenantId ?? user.tenantId : user.tenantId;
+    const validationErrors: Array<{ field: string; message: string }> = [];
     if (!tenantId) {
-      return NextResponse.json({ message: 'Tenant required' }, { status: 400 });
+      validationErrors.push({ field: 'tenantId', message: 'Tenant required' });
     }
     if (!payload.name) {
-      return NextResponse.json({ message: 'Name required' }, { status: 400 });
+      validationErrors.push({ field: 'name', message: 'Name required' });
+    }
+    if (!payload.email) {
+      validationErrors.push({ field: 'email', message: 'Email required' });
+    }
+    if (validationErrors.length > 0) {
+      return NextResponse.json({ error: 'validation', details: validationErrors }, { status: 400 });
     }
 
     const password = payload.password?.toString() || 'initpass';
@@ -49,7 +60,7 @@ export async function POST(request: Request) {
       data: {
         tenantId,
         name: payload.name,
-        email: payload.email ?? null,
+        email: payload.email,
         shopName: payload.shopName ?? null,
         passwordHash,
       },
