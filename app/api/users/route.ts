@@ -4,6 +4,8 @@ import { requireSession, requireRoles, errorResponse } from '@/lib/api';
 import { hashPassword } from '@/lib/auth';
 import { auditLog } from '@/lib/audit';
 
+export const runtime = 'nodejs';
+
 function generateTempPassword() {
   return Math.random().toString(36).slice(2, 10);
 }

@@ -4,6 +4,8 @@ import { prisma } from '@/lib/db';
 import { requireSession, requireRoles, errorResponse } from '@/lib/api';
 import { AttachmentEntityType } from '@prisma/client';
 
+export const runtime = 'nodejs';
+
 export async function POST(request: Request) {
   try {
     const { user, response } = await requireSession();

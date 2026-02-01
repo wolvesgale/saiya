@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireSession } from '@/lib/api';
 
+export const runtime = 'nodejs';
+
 export async function GET(request: Request) {
   const { user, response } = await requireSession();
   if (response) return response;

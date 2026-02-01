@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireSession, requireRoles, errorResponse } from '@/lib/api';
 
+export const runtime = 'nodejs';
+
 function buildDays(start: Date, end: Date) {
   const days: Date[] = [];
   const current = new Date(start);
