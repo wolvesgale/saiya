@@ -26,6 +26,8 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       data: {
         name: payload.name ?? venue.name,
         address: payload.address ?? venue.address,
+        note: payload.note ?? venue.note,
+        attachmentUrl: payload.attachmentUrl ?? venue.attachmentUrl,
         phone: payload.phone ?? venue.phone,
         contactName: payload.contactName ?? venue.contactName,
         trashRule: payload.trashRule ?? venue.trashRule,
@@ -37,7 +39,6 @@ export async function PATCH(request: Request, { params }: { params: { id: string
         loadOutTime: payload.loadOutTime ?? venue.loadOutTime,
         preContactRequired: payload.preContactRequired ?? venue.preContactRequired,
         brokerNote: payload.brokerNote ?? venue.brokerNote,
-        agencyId: payload.agencyId ?? venue.agencyId,
       },
     });
 

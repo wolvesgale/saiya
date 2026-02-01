@@ -19,8 +19,15 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const tenantId = user.role === 'SUPER_ADMIN' ? url.searchParams.get('tenantId') ?? undefined : user.tenantId ?? undefined;
 
+  if (user.role === 'AGENT' && !user.agencyId) {
+    return NextResponse.json([]);
+  }
+
   const users = await prisma.user.findMany({
-    where: tenantId ? { tenantId } : {},
+    where: {
+      ...(tenantId ? { tenantId } : {}),
+      ...(user.role === 'AGENT' ? { agencyId: user.agencyId ?? undefined } : {}),
+    },
     orderBy: { createdAt: 'desc' },
     select: { id: true, email: true, role: true, isActive: true, tenantId: true, agencyId: true },
   });

@@ -13,15 +13,6 @@ enum UserRole {
   AGENT
 }
 
-enum CommissionType {
-  PERCENT
-  FIXED
-}
-
-enum PartyType {
-  AGENT
-}
-
 enum CashHandlingType {
   HOLD
   TAKE_HOME
@@ -69,7 +60,6 @@ model User {
   tenant  Tenant? @relation(fields: [tenantId], references: [id])
   agency  Agency? @relation(fields: [agencyId], references: [id])
   sessions Session[]
-  sales    Sale[]   @relation("SaleCreatedBy")
   accesses Access[]
   attachments Attachment[]
 }
@@ -87,11 +77,14 @@ model Agency {
   id        String   @id @default(uuid())
   tenantId  String
   name      String
+  email     String?
+  brandName String?
+  passwordHash String
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
-  venues Venue[]
   events Event[]
   users  User[]
   sales  Sale[]
@@ -112,9 +105,10 @@ model Intermediary {
 model Venue {
   id                String   @id @default(uuid())
   tenantId          String
-  agencyId          String?
   name              String
   address           String?
+  note              String?
+  attachmentUrl     String?
   phone             String?
   contactName       String?
   trashRule         String?
@@ -127,24 +121,26 @@ model Venue {
   preContactRequired Boolean @default(false)
   brokerNote        String?
   createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
-  agency Agency? @relation(fields: [agencyId], references: [id])
   events Event[]
 }
 
 model Event {
   id            String   @id @default(uuid())
   tenantId      String
-  agencyId      String?
-  venueId       String?
+  agencyId      String
+  venueId       String
   intermediaryId String?
   title         String
   startDate     DateTime
   endDate       DateTime
-  colorOverride String?
+  reportDeadline String?
+  cashHandling  CashHandlingType?
   memo          String?
   createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   tenant   Tenant @relation(fields: [tenantId], references: [id])
   agency   Agency? @relation(fields: [agencyId], references: [id])
@@ -174,20 +170,15 @@ model Sale {
   eventId         String
   agencyId        String
   date            DateTime
-  partyType       PartyType
   amount          Float
-  commissionType  CommissionType
-  commissionValue Float
-  parkingFee      Float   @default(0)
-  managerName     String
-  memoAppendOnly  String?
-  createdByUserId String
   createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
   event  Event  @relation(fields: [eventId], references: [id])
   agency Agency @relation(fields: [agencyId], references: [id])
-  createdBy User @relation("SaleCreatedBy", fields: [createdByUserId], references: [id])
+
+  @@unique([eventId, date])
 }
 
 model Access {

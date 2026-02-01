@@ -22,7 +22,6 @@ export async function GET() {
       where: {
         eventId: eventDay.eventId,
         date: targetDate,
-        partyType: 'AGENT',
       },
     });
 

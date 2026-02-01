@@ -19,7 +19,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     if (roleResponse) return roleResponse;
 
     const payload = await request.json();
-    const memoText = (payload.memo ?? '').toString().trim();
+    const memoText = (payload.text ?? payload.memo ?? '').toString().trim();
     if (!memoText) {
       return NextResponse.json({ message: 'Memo is required' }, { status: 400 });
     }
