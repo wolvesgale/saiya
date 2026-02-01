@@ -56,7 +56,7 @@ export function getPrisma() {
   return globalThis.__prisma;
 }
 
-export async function getXruleTenantId(prisma: PrismaClient) {
+export async function resolveXruleTenantId(prisma: PrismaClient) {
   if (process.env.XRULE_TENANT_ID && process.env.XRULE_TENANT_ID.length > 0) {
     console.info('[tenant] Using XRULE_TENANT_ID from environment.');
     return process.env.XRULE_TENANT_ID;

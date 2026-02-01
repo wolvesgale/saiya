@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getPrisma, getXruleTenantId } from '@/lib/db';
+import { getPrisma, resolveXruleTenantId } from '@/lib/db';
 import { requireSession, requireRoles, errorResponse } from '@/lib/api';
 import { hashPassword } from '@/lib/auth';
 
@@ -17,7 +17,7 @@ export async function GET(request: Request) {
 
     const url = new URL(request.url);
     const requestedTenantId = url.searchParams.get('tenantId') ?? undefined;
-    const tenantId = requestedTenantId ?? (await getXruleTenantId(prisma));
+    const tenantId = requestedTenantId ?? (await resolveXruleTenantId(prisma));
 
     const agencies = await prisma.agency.findMany({
       where: tenantId ? { tenantId } : {},
@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     const name = payload.name?.toString().trim();
     const email = payload.email?.toString().trim();
     const requestedTenantId = payload.tenantId?.toString() || undefined;
-    const tenantId = requestedTenantId ?? (await getXruleTenantId(prisma));
+    const tenantId = requestedTenantId ?? (await resolveXruleTenantId(prisma));
     const validationErrors: Array<{ field: string; message: string }> = [];
     if (!tenantId) {
       validationErrors.push({ field: 'tenantId', message: 'Tenant required' });

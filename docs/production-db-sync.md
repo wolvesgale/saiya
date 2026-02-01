@@ -62,3 +62,18 @@ alter table "Venue" add column if not exists "note" text;
 ```
 
 Repeat for any other missing columns that exist in `prisma/schema.prisma`.
+
+## Migration recovery (P3009)
+
+If Prisma reports `P3009` (failed migration found) in production, you must resolve it manually.
+Decide whether the failed migration already applied its SQL or not, then mark it:
+
+```bash
+# Mark as rolled back (if the migration did NOT apply)
+npx prisma migrate resolve --rolled-back 20260202001000_seed_xrule_tenant
+
+# Mark as applied (if the migration DID apply successfully)
+npx prisma migrate resolve --applied 20260202001000_seed_xrule_tenant
+```
+
+After resolving, re-run `npx prisma migrate deploy`.

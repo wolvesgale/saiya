@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getPrisma, getXruleTenantId } from '@/lib/db';
+import { getPrisma, resolveXruleTenantId } from '@/lib/db';
 import { errorResponse } from '@/lib/api';
 
 export const runtime = 'nodejs';
@@ -38,7 +38,7 @@ export async function GET() {
     let xruleTenantId: string | null = null;
     let xruleTenantError: string | null = null;
     try {
-      xruleTenantId = await getXruleTenantId(prisma);
+      xruleTenantId = await resolveXruleTenantId(prisma);
     } catch (tenantError) {
       xruleTenantError = tenantError instanceof Error ? tenantError.message : 'Unknown error';
     }

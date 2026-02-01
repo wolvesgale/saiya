@@ -123,7 +123,6 @@ export default function AdminDashboard() {
       body: JSON.stringify({
         name: formData.get('name'),
         email: formData.get('email'),
-        shopName: formData.get('shopName'),
         password: formData.get('password'),
       }),
     });
@@ -326,10 +325,6 @@ export default function AdminDashboard() {
             <div>
               <label htmlFor="agency-email">メール</label>
               <input id="agency-email" name="email" type="email" required />
-            </div>
-            <div>
-              <label htmlFor="agency-shop">屋号 (任意)</label>
-              <input id="agency-shop" name="shopName" />
             </div>
             <div>
               <label htmlFor="agency-password">初期パスワード (任意)</label>

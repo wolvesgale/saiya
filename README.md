@@ -65,6 +65,16 @@ DATABASE_URL="Pooler接続文字列" DIRECT_URL="Direct接続文字列" npx pris
 DATABASE_URL="Pooler接続文字列" DIRECT_URL="Direct接続文字列" npx prisma db seed
 ```
 
+### Prisma migrate resolve（P3009復旧）
+本番DBで `P3009` が出た場合は手動で復旧します（自動では実行しません）。
+移行SQLが適用済みかどうかを確認し、該当の migration を `--applied` か `--rolled-back` で解決してください。
+```bash
+npx prisma migrate resolve --rolled-back 20260202001000_seed_xrule_tenant
+# もしくは
+npx prisma migrate resolve --applied 20260202001000_seed_xrule_tenant
+```
+復旧後に `npx prisma migrate deploy` を実行します。
+
 ## 認証フロー
 - `/login` からログイン
 - `/api/auth/login` -> セッションCookie発行
