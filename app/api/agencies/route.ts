@@ -39,11 +39,18 @@ export async function POST(request: Request) {
 
     const payload = await request.json();
     const tenantId = user.role === 'SUPER_ADMIN' ? payload.tenantId ?? user.tenantId : user.tenantId;
+    const validationErrors: Array<{ field: string; message: string }> = [];
     if (!tenantId) {
-      return NextResponse.json({ message: 'Tenant required' }, { status: 400 });
+      validationErrors.push({ field: 'tenantId', message: 'Tenant required' });
     }
     if (!payload.name) {
-      return NextResponse.json({ message: 'Name required' }, { status: 400 });
+      validationErrors.push({ field: 'name', message: 'Name required' });
+    }
+    if (!payload.email) {
+      validationErrors.push({ field: 'email', message: 'Email required' });
+    }
+    if (validationErrors.length > 0) {
+      return NextResponse.json({ error: 'validation', details: validationErrors }, { status: 400 });
     }
 
     const password = payload.password?.toString() || 'initpass';
@@ -53,7 +60,7 @@ export async function POST(request: Request) {
       data: {
         tenantId,
         name: payload.name,
-        email: payload.email ?? null,
+        email: payload.email,
         shopName: payload.shopName ?? null,
         passwordHash,
       },

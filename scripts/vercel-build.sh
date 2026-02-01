@@ -11,10 +11,37 @@ pick() {
   echo ""
 }
 
+extract_port() {
+  local url="$1"
+  local without_proto="${url#*://}"
+  local hostport="${without_proto%%/*}"
+  local port=""
+  if [[ "$hostport" == *"@"* ]]; then
+    hostport="${hostport##*@}"
+  fi
+  if [[ "$hostport" == *":"* ]]; then
+    port="${hostport##*:}"
+  fi
+  echo "$port"
+}
+
+database_source="DATABASE_URL"
 if [[ -z "${DATABASE_URL:-}" ]]; then
-  DATABASE_URL="$(pick "${POSTGRES_PRISMA_URL:-}" "${POSTGRES_URL:-}" "${POSTGRES_URL_NON_POOLING:-}")"
+  if [[ -n "${POSTGRES_PRISMA_URL:-}" ]]; then
+    DATABASE_URL="${POSTGRES_PRISMA_URL}"
+    database_source="POSTGRES_PRISMA_URL"
+  elif [[ -n "${POSTGRES_URL:-}" ]]; then
+    DATABASE_URL="${POSTGRES_URL}"
+    database_source="POSTGRES_URL"
+  elif [[ -n "${POSTGRES_URL_NON_POOLING:-}" ]]; then
+    DATABASE_URL="${POSTGRES_URL_NON_POOLING}"
+    database_source="POSTGRES_URL_NON_POOLING"
+  elif [[ -n "${SUPABASE_DATABASE_URL:-}" ]]; then
+    DATABASE_URL="${SUPABASE_DATABASE_URL}"
+    database_source="SUPABASE_DATABASE_URL"
+  fi
   export DATABASE_URL
-  echo "DATABASE_URL was not set. Resolved from Vercel Postgres env (PRISMA_URL/URL/NON_POOLING)."
+  echo "DATABASE_URL was not set. Resolved from ${database_source}."
 fi
 
 if [[ -z "${DATABASE_URL:-}" ]]; then
@@ -22,10 +49,23 @@ if [[ -z "${DATABASE_URL:-}" ]]; then
   exit 1
 fi
 
+direct_source="DIRECT_URL"
 if [[ -z "${DIRECT_URL:-}" ]]; then
-  DIRECT_URL="$(pick "${POSTGRES_URL_NON_POOLING:-}" "${POSTGRES_PRISMA_URL:-}" "${DATABASE_URL:-}")"
+  if [[ -n "${POSTGRES_URL_NON_POOLING:-}" ]]; then
+    DIRECT_URL="${POSTGRES_URL_NON_POOLING}"
+    direct_source="POSTGRES_URL_NON_POOLING"
+  elif [[ -n "${POSTGRES_PRISMA_URL:-}" ]]; then
+    DIRECT_URL="${POSTGRES_PRISMA_URL}"
+    direct_source="POSTGRES_PRISMA_URL"
+  elif [[ -n "${SUPABASE_DATABASE_URL:-}" ]]; then
+    DIRECT_URL="${SUPABASE_DATABASE_URL}"
+    direct_source="SUPABASE_DATABASE_URL"
+  else
+    DIRECT_URL="${DATABASE_URL:-}"
+    direct_source="DATABASE_URL"
+  fi
   export DIRECT_URL
-  echo "DIRECT_URL was not set. Resolved from Vercel Postgres env (NON_POOLING/PRISMA_URL) or DATABASE_URL."
+  echo "DIRECT_URL was not set. Resolved from ${direct_source}."
 fi
 
 if [[ -z "${DIRECT_URL:-}" ]]; then
@@ -33,7 +73,15 @@ if [[ -z "${DIRECT_URL:-}" ]]; then
   exit 1
 fi
 
-echo "Prisma env prepared (values hidden). Running Prisma + Next build..."
+if [[ "${direct_source}" == "DATABASE_URL" ]]; then
+  direct_port="$(extract_port "${DIRECT_URL}")"
+  if [[ -n "${direct_port}" && "${direct_port}" != "5432" ]]; then
+    echo "ERROR: DIRECT_URL fell back to DATABASE_URL but port ${direct_port} is not 5432."
+    exit 1
+  fi
+fi
+
+echo "Prisma env prepared (values hidden). DATABASE_URL source=${database_source}, DIRECT_URL source=${direct_source}."
 
 npx prisma generate --schema prisma/schema.prisma
 npx prisma migrate deploy --schema prisma/schema.prisma
