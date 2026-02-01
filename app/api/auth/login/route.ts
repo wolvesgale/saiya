@@ -5,8 +5,6 @@ import { errorResponse } from '@/lib/api';
 
 export const runtime = 'nodejs';
 
-export const runtime = 'nodejs';
-
 export async function POST(request: Request) {
   try {
     const prisma = getPrisma();

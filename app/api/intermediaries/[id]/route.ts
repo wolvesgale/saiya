@@ -1,10 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getPrisma } from '@/lib/db';
 import { requireSession, requireRoles, errorResponse } from '@/lib/api';
-import { auditLog } from '@/lib/audit';
 
 export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
 
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
   const prisma = getPrisma();
@@ -16,19 +14,20 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     if (roleResponse) return roleResponse;
 
     const payload = await request.json();
-    const agency = await prisma.agency.findUnique({ where: { id: params.id } });
-    if (!agency) return NextResponse.json({ message: 'Not found' }, { status: 404 });
-    if (user.role !== 'SUPER_ADMIN' && agency.tenantId !== user.tenantId) {
+    const intermediary = await prisma.intermediary.findUnique({ where: { id: params.id } });
+    if (!intermediary) return NextResponse.json({ message: 'Not found' }, { status: 404 });
+    if (user.role !== 'SUPER_ADMIN' && intermediary.tenantId !== user.tenantId) {
       return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     }
 
-    const updated = await prisma.agency.update({
+    const updated = await prisma.intermediary.update({
       where: { id: params.id },
       data: {
-        name: payload.name ?? agency.name,
-        isActive: payload.isActive ?? agency.isActive,
+        name: payload.name ?? intermediary.name,
+        reportFormUrl: payload.reportFormUrl ?? intermediary.reportFormUrl,
       },
     });
+
     return NextResponse.json(updated);
   } catch (error) {
     return errorResponse(error);
@@ -44,14 +43,14 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
     const roleResponse = requireRoles(user.role, ['SUPER_ADMIN', 'ADMIN']);
     if (roleResponse) return roleResponse;
 
-    const agency = await prisma.agency.findUnique({ where: { id: params.id } });
-    if (!agency) return NextResponse.json({ message: 'Not found' }, { status: 404 });
-    if (user.role !== 'SUPER_ADMIN' && agency.tenantId !== user.tenantId) {
+    const intermediary = await prisma.intermediary.findUnique({ where: { id: params.id } });
+    if (!intermediary) return NextResponse.json({ message: 'Not found' }, { status: 404 });
+    if (user.role !== 'SUPER_ADMIN' && intermediary.tenantId !== user.tenantId) {
       return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     }
 
-    await prisma.agency.delete({ where: { id: params.id } });
-    auditLog('agency.deleted', { agencyId: params.id, userId: user.id });
+    await prisma.intermediary.delete({ where: { id: params.id } });
+
     return NextResponse.json({ ok: true });
   } catch (error) {
     return errorResponse(error);

@@ -24,7 +24,7 @@ export async function GET(request: Request) {
 
   const events = await prisma.event.findMany({
     where: tenantId ? { tenantId } : {},
-    include: { agency: true, venue: true },
+    include: { agency: true, venue: true, intermediary: true },
     orderBy: { startDate: 'desc' },
   });
 
@@ -36,6 +36,10 @@ export async function GET(request: Request) {
       endDate: event.endDate.toISOString().slice(0, 10),
       agencyName: event.agency?.name ?? null,
       venueName: event.venue?.name ?? null,
+      intermediaryId: event.intermediaryId ?? null,
+      intermediaryName: event.intermediary?.name ?? null,
+      intermediaryReportFormUrl: event.intermediary?.reportFormUrl ?? null,
+      memo: event.memo ?? null,
     }))
   );
 }
@@ -56,11 +60,21 @@ export async function POST(request: Request) {
     const startDate = new Date(payload.startDate);
     const endDate = new Date(payload.endDate);
 
+    let intermediaryId: string | null = payload.intermediaryId ?? null;
+    if (intermediaryId === '') intermediaryId = null;
+    if (intermediaryId) {
+      const intermediary = await prisma.intermediary.findUnique({ where: { id: intermediaryId } });
+      if (!intermediary || intermediary.tenantId !== tenantId) {
+        return NextResponse.json({ message: 'Invalid intermediary' }, { status: 400 });
+      }
+    }
+
     const event = await prisma.event.create({
       data: {
         tenantId,
         agencyId: payload.agencyId ?? null,
         venueId: payload.venueId ?? null,
+        intermediaryId,
         title: payload.title,
         startDate,
         endDate,

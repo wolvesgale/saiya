@@ -3,17 +3,25 @@
 @tailwind utilities;
 
 body {
-  @apply bg-slate-50 text-slate-900;
+  @apply bg-slate-950 text-slate-100;
 }
 
 input, select, textarea {
-  @apply border border-slate-300 rounded px-3 py-2 text-sm w-full;
+  @apply border border-slate-700 rounded px-3 py-2 text-sm w-full bg-slate-900 text-slate-100 placeholder:text-slate-500;
+}
+
+input:focus, select:focus, textarea:focus {
+  @apply outline-none ring-2 ring-indigo-500/60 border-indigo-500/60;
 }
 
 label {
-  @apply text-sm font-medium text-slate-700;
+  @apply text-sm font-medium text-slate-300;
 }
 
 button {
   @apply px-4 py-2 rounded text-sm font-semibold;
+}
+
+::placeholder {
+  @apply text-slate-500;
 }

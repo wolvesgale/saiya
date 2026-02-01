@@ -14,11 +14,11 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const tenantId = user.role === 'SUPER_ADMIN' ? url.searchParams.get('tenantId') ?? undefined : user.tenantId ?? undefined;
 
-  const agencies = await prisma.agency.findMany({
+  const intermediaries = await prisma.intermediary.findMany({
     where: tenantId ? { tenantId } : {},
     orderBy: { createdAt: 'desc' },
   });
-  return NextResponse.json(agencies);
+  return NextResponse.json(intermediaries);
 }
 
 export async function POST(request: Request) {
@@ -35,15 +35,19 @@ export async function POST(request: Request) {
     if (!tenantId) {
       return NextResponse.json({ message: 'Tenant required' }, { status: 400 });
     }
+    if (!payload.name) {
+      return NextResponse.json({ message: 'Name is required' }, { status: 400 });
+    }
 
-    const agency = await prisma.agency.create({
+    const intermediary = await prisma.intermediary.create({
       data: {
         tenantId,
         name: payload.name,
+        reportFormUrl: payload.reportFormUrl ?? null,
       },
     });
 
-    return NextResponse.json(agency, { status: 201 });
+    return NextResponse.json(intermediary, { status: 201 });
   } catch (error) {
     return errorResponse(error);
   }

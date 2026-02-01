@@ -13,8 +13,15 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const tenantId = user.role === 'SUPER_ADMIN' ? url.searchParams.get('tenantId') ?? undefined : user.tenantId ?? undefined;
 
+  if (user.role === 'AGENT' && !user.agencyId) {
+    return NextResponse.json([]);
+  }
+
   const sales = await prisma.sale.findMany({
-    where: tenantId ? { tenantId } : {},
+    where: {
+      ...(tenantId ? { tenantId } : {}),
+      ...(user.role === 'AGENT' ? { agencyId: user.agencyId ?? undefined } : {}),
+    },
     orderBy: { createdAt: 'desc' },
   });
   return NextResponse.json(sales);
@@ -26,7 +33,7 @@ export async function POST(request: Request) {
     const { user, response } = await requireSession(request);
     if (response) return response;
     if (!user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
-    const roleResponse = requireRoles(user.role, ['SUPER_ADMIN', 'ADMIN', 'AGENT', 'BROKER']);
+    const roleResponse = requireRoles(user.role, ['SUPER_ADMIN', 'ADMIN', 'AGENT']);
     if (roleResponse) return roleResponse;
 
     const payload = await request.json();
@@ -40,22 +47,25 @@ export async function POST(request: Request) {
     const partyType = payload.partyType;
 
     if (user.role === 'AGENT' && partyType !== 'AGENT') {
-      return NextResponse.json({ message: 'Agent cannot submit broker sales' }, { status: 403 });
+      return NextResponse.json({ message: 'Agent cannot submit non-agent sales' }, { status: 403 });
     }
-
     if (user.role === 'AGENT') {
-      const eventDay = await prisma.eventDay.findUnique({
-        where: { eventId_date: { eventId: event.id, date } },
-      });
-      if (!eventDay?.brokerCompleted) {
-        return NextResponse.json({ message: 'Broker completion required before agent submission' }, { status: 403 });
+      if (!user.agencyId) {
+        return NextResponse.json({ message: 'Agency required' }, { status: 403 });
       }
+      if (event.agencyId !== user.agencyId) {
+        return NextResponse.json({ message: 'Cannot submit sales for another agency' }, { status: 403 });
+      }
+    }
+    if (!event.agencyId) {
+      return NextResponse.json({ message: 'Event agency required for sales' }, { status: 400 });
     }
 
     const sale = await prisma.sale.create({
       data: {
         tenantId: event.tenantId,
         eventId: event.id,
+        agencyId: event.agencyId,
         date,
         partyType,
         amount: payload.amount,
