@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { put } from '@vercel/blob';
-import { prisma } from '@/lib/db';
+import { getPrisma } from '@/lib/db';
 import { requireSession, requireRoles, errorResponse } from '@/lib/api';
 import { AttachmentEntityType } from '@prisma/client';
 import { Readable } from 'stream';
@@ -8,6 +8,7 @@ import { Readable } from 'stream';
 export const runtime = 'nodejs';
 
 export async function POST(request: Request) {
+  const prisma = getPrisma();
   try {
     const { user, response } = await requireSession(request);
     if (response) return response;

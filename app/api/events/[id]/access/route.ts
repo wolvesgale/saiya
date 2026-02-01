@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { getPrisma } from '@/lib/db';
 import { requireSession, errorResponse } from '@/lib/api';
 
 export const runtime = 'nodejs';
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
+  const prisma = getPrisma();
   try {
     const { user, response } = await requireSession(request);
     if (response) return response;

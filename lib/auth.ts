@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
 import { randomUUID } from 'crypto';
 import bcrypt from 'bcryptjs';
-import { prisma } from '@/lib/db';
+import { getPrisma } from '@/lib/db';
 import type { User, UserRole } from '@prisma/client';
 
 const SESSION_COOKIE = 'saiya_session';
@@ -17,6 +17,7 @@ export type SessionUser = {
 };
 
 export async function createSession(user: User) {
+  const prisma = getPrisma();
   const token = randomUUID();
   const expiresAt = new Date(Date.now() + SESSION_TTL_HOURS * 60 * 60 * 1000);
 
@@ -40,6 +41,7 @@ export async function createSession(user: User) {
 }
 
 export async function clearSession() {
+  const prisma = getPrisma();
   const token = cookies().get(SESSION_COOKIE)?.value;
   if (token) {
     await prisma.session.delete({ where: { id: token } }).catch(() => undefined);
@@ -56,6 +58,7 @@ export async function clearSession() {
 }
 
 export async function getSessionUserFromToken(token: string): Promise<SessionUser | null> {
+  const prisma = getPrisma();
   const session = await prisma.session.findUnique({
     where: { id: token },
     include: { user: true },

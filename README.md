@@ -76,7 +76,7 @@ npm run seed
      - Postgres（Neonなど）
      - Vercel Blob
      - Upstash Redis（KV用途）
-   - 環境変数
+   - 環境変数（Preview/Production 両方に同じ値を設定）
      - `DATABASE_URL`（Supabase integration または Vercel Postgres の接続文字列）
      - `FILE_STORAGE_PROVIDER`（`blob` or `gdrive`）
      - `BLOB_READ_WRITE_TOKEN`（`FILE_STORAGE_PROVIDER=blob` の場合）

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { getPrisma } from '@/lib/db';
 import { requireSession, requireRoles, errorResponse } from '@/lib/api';
 import { hashPassword } from '@/lib/auth';
 import { auditLog } from '@/lib/audit';
@@ -11,6 +11,7 @@ function generateTempPassword() {
 }
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
+  const prisma = getPrisma();
   try {
     const { user, response } = await requireSession(request);
     if (response) return response;

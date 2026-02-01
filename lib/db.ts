@@ -1,23 +1,27 @@
 import { PrismaClient } from '@prisma/client';
 
-const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
+declare global {
+  // eslint-disable-next-line no-var
+  var __prisma: PrismaClient | undefined;
+}
 
 const databaseUrl =
   process.env.DATABASE_URL ?? process.env.POSTGRES_PRISMA_URL ?? process.env.SUPABASE_DATABASE_URL;
 
-export const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    ...(databaseUrl
-      ? {
-          datasources: {
-            db: {
-              url: databaseUrl,
+export function getPrisma() {
+  if (!globalThis.__prisma) {
+    globalThis.__prisma = new PrismaClient({
+      ...(databaseUrl
+        ? {
+            datasources: {
+              db: {
+                url: databaseUrl,
+              },
             },
-          },
-        }
-      : {}),
-    log: ['error', 'warn'],
-  });
-
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+          }
+        : {}),
+      log: ['error', 'warn'],
+    });
+  }
+  return globalThis.__prisma;
+}
