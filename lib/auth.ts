@@ -1,4 +1,3 @@
-// lib/auth.ts
 import crypto from 'crypto';
 import { cookies } from 'next/headers';
 import { getPrisma } from '@/lib/db';
@@ -11,9 +10,7 @@ const PEPPER = process.env.PASSWORD_PEPPER ?? '';
 
 export async function hashPassword(password: string) {
   const salt = crypto.randomBytes(16).toString('hex');
-  const hash = crypto
-    .pbkdf2Sync(password + PEPPER, salt, ITERATIONS, KEYLEN, DIGEST)
-    .toString('hex');
+  const hash = crypto.pbkdf2Sync(password + PEPPER, salt, ITERATIONS, KEYLEN, DIGEST).toString('hex');
   return `${ITERATIONS}:${salt}:${hash}`;
 }
 
@@ -23,10 +20,7 @@ export async function verifyPassword(password: string, stored: string) {
     const iterations = Number(iterStr);
     if (!iterations || !salt || !hash) return false;
 
-    const computed = crypto
-      .pbkdf2Sync(password + PEPPER, salt, iterations, KEYLEN, DIGEST)
-      .toString('hex');
-
+    const computed = crypto.pbkdf2Sync(password + PEPPER, salt, iterations, KEYLEN, DIGEST).toString('hex');
     return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(computed, 'hex'));
   } catch {
     return false;
@@ -34,7 +28,7 @@ export async function verifyPassword(password: string, stored: string) {
 }
 
 // ===== セッション =====
-export type PrincipalType = 'USER' | 'AGENCY';
+type PrincipalType = 'USER' | 'AGENCY';
 
 export type SessionUser = {
   id: string;
@@ -109,8 +103,8 @@ export async function getSessionUserFromToken(token: string): Promise<SessionUse
   if (!exp || Number.isNaN(exp.getTime()) || exp.getTime() < Date.now()) return null;
 
   const principalType: PrincipalType = decoded.principalType === 'AGENCY' ? 'AGENCY' : 'USER';
-  const id = (decoded.sub ?? '').toString();
-  const role = (decoded.role ?? '').toString();
+  const id = String(decoded.sub ?? '').trim();
+  const role = String(decoded.role ?? '').trim();
   if (!id || !role) return null;
 
   const prisma = getPrisma();
@@ -118,12 +112,13 @@ export async function getSessionUserFromToken(token: string): Promise<SessionUse
   if (principalType === 'AGENCY') {
     const agency = await prisma.agency.findUnique({ where: { id } });
     if (!agency) return null;
+
     return {
       principalType: 'AGENCY',
       id: agency.id,
       email: agency.email,
       role: 'AGENT',
-      tenantId: agency.tenantId,
+      tenantId: agency.tenantId ?? null,
       agencyId: agency.id,
       mustChangePassword: false,
       isActive: true,
@@ -149,12 +144,14 @@ function getCookieValue(cookieHeader: string | null, name: string) {
   if (!cookieHeader) return null;
   const parts = cookieHeader.split(';').map((p) => p.trim());
   for (const part of parts) {
-    if (part.startsWith(`${name}=`)) return decodeURIComponent(part.slice(name.length + 1));
+    if (part.startsWith(`${name}=`)) {
+      return decodeURIComponent(part.slice(name.length + 1));
+    }
   }
   return null;
 }
 
-// 互換: 既存が import してても壊れない用
+// ✅ 互換: change-password 等が import しても落ちないようにする
 export async function getSessionUser(request: Request) {
   const token = getCookieValue(request.headers.get('cookie'), SESSION_COOKIE);
   if (!token) return null;
