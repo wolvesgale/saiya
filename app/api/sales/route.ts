@@ -7,24 +7,28 @@ export const runtime = 'nodejs';
 
 export async function GET(request: Request) {
   const prisma = getPrisma();
-  const { user, response } = await requireSession(request);
-  if (response) return response;
-  if (!user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
-  const url = new URL(request.url);
-  const tenantId = user.role === 'SUPER_ADMIN' ? url.searchParams.get('tenantId') ?? undefined : user.tenantId ?? undefined;
+  try {
+    const { user, response } = await requireSession(request);
+    if (response) return response;
+    if (!user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+    const url = new URL(request.url);
+    const tenantId = user.role === 'SUPER_ADMIN' ? url.searchParams.get('tenantId') ?? undefined : user.tenantId ?? undefined;
 
-  if (user.role === 'AGENT' && !user.agencyId) {
-    return NextResponse.json([]);
+    if (user.role === 'AGENT' && !user.agencyId) {
+      return NextResponse.json([]);
+    }
+
+    const sales = await prisma.sale.findMany({
+      where: {
+        ...(tenantId ? { tenantId } : {}),
+        ...(user.role === 'AGENT' ? { agencyId: user.agencyId ?? undefined } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    return NextResponse.json(sales);
+  } catch (error) {
+    return errorResponse(error);
   }
-
-  const sales = await prisma.sale.findMany({
-    where: {
-      ...(tenantId ? { tenantId } : {}),
-      ...(user.role === 'AGENT' ? { agencyId: user.agencyId ?? undefined } : {}),
-    },
-    orderBy: { createdAt: 'desc' },
-  });
-  return NextResponse.json(sales);
 }
 
 export async function POST(request: Request) {
