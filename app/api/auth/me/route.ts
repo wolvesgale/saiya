@@ -1,12 +1,16 @@
 import { NextResponse } from 'next/server';
-import { getSessionUser } from '@/lib/auth';
+import { requireSession, errorResponse } from '@/lib/api';
 
 export const runtime = 'nodejs';
 
-export async function GET() {
-  const user = await getSessionUser();
-  if (!user) {
-    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+export async function GET(request: Request) {
+  try {
+    const { user, response } = await requireSession(request);
+    if (response) return response;
+    if (!user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+
+    return NextResponse.json({ user });
+  } catch (error) {
+    return errorResponse(error);
   }
-  return NextResponse.json(user);
 }
