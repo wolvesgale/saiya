@@ -6,7 +6,6 @@ import { appendDailySales } from '@/lib/googleSheets';
 
 export const runtime = 'nodejs';
 
-// DB enum 実値（あなたの Supabase で確認済み）
 const PARTY_TYPES = ['AGENT', 'BROKER'] as const;
 type PartyType = (typeof PARTY_TYPES)[number];
 
@@ -72,18 +71,13 @@ export async function POST(request: Request) {
     const roleResponse = requireRoles(user.role, ['SUPER_ADMIN', 'ADMIN', 'AGENT']);
     if (roleResponse) return roleResponse;
 
-    // ========= 2-2: “本番がこのrouteを動かしている”証明ログ =========
-    console.log('[sales POST] route-version:', '2026-02-02-c');
+    // ★ 2-2: 反映確認ログ
+    console.log('[sales POST] route-version:', '2026-02-02-d');
+    console.log('[sales POST] user.id:', user.id);
     console.log('[sales POST] user keys:', Object.keys(user as any));
-    console.log('[sales POST] user.id:', (user as any)?.id);
-    // ============================================================
 
-    // ★監査カラム：DBの createdByUserId（NOT NULL）を必ず埋める
-    // セッションの principal が USER でも AGENCY でも、とにかく “現在のprincipal id” を入れる（止血）
     const createdByUserId = user.id;
-
     if (!createdByUserId) {
-      console.error('[sales POST] missing user.id', { keys: Object.keys(user as any) });
       return NextResponse.json(
         { message: 'Session user id missing (createdByUserId required)' },
         { status: 500 },
@@ -92,7 +86,6 @@ export async function POST(request: Request) {
 
     const payload = await request.json();
 
-    // 必須: eventId
     const eventId = toStringOrEmpty(payload?.eventId);
     if (!eventId) {
       return NextResponse.json({ message: 'eventId required' }, { status: 400 });
@@ -101,24 +94,20 @@ export async function POST(request: Request) {
     const event = await prisma.event.findUnique({ where: { id: eventId } });
     if (!event) return NextResponse.json({ message: 'Event not found' }, { status: 404 });
 
-    // テナント境界
     if (user.role !== 'SUPER_ADMIN' && event.tenantId !== user.tenantId) {
       return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     }
 
-    // 必須: date
     const date = new Date(payload?.date);
     if (Number.isNaN(date.getTime())) {
       return NextResponse.json({ message: 'Date required' }, { status: 400 });
     }
 
-    // 必須: amount
     const amount = toNumberOrNull(payload?.amount);
     if (amount === null) {
       return NextResponse.json({ message: 'Amount required' }, { status: 400 });
     }
 
-    // 代理店制約
     if (user.role === 'AGENT') {
       if (!user.agencyId) {
         return NextResponse.json({ message: 'Agency required' }, { status: 403 });
@@ -132,7 +121,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: 'Event agency required for sales' }, { status: 400 });
     }
 
-    // 同日重複防止
     const existing = await prisma.sale.findUnique({
       where: { eventId_date: { eventId: event.id, date } },
     });
@@ -140,13 +128,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: 'Sales already submitted for this date' }, { status: 409 });
     }
 
-    // ====== DBの NOT NULL 列を必ず埋める ======
-    const partyType: PartyType =
+    const partyType =
       isPartyType(payload?.partyType)
         ? payload.partyType
         : (user.role === 'AGENT' ? 'AGENT' : 'BROKER');
 
-    const commissionType: CommissionType =
+    const commissionType =
       isCommissionType(payload?.commissionType) ? payload.commissionType : 'PERCENT';
 
     const commissionValue = toNumberOrNull(payload?.commissionValue) ?? 0;
@@ -167,21 +154,16 @@ export async function POST(request: Request) {
         date,
         amount,
 
-        // ★監査（ここが今回の必須）
         createdByUserId,
-
-        // ★DBのNOT NULL
         partyType,
         commissionType,
         commissionValue,
         parkingFee,
         managerName,
-
         ...(memoAppendOnly !== undefined ? { memoAppendOnly } : {}),
       },
     });
 
-    // Google Sheets 連携（失敗しても保存は成功させる）
     const [agency, venue] = await Promise.all([
       prisma.agency.findUnique({ where: { id: event.agencyId } }),
       prisma.venue.findUnique({ where: { id: event.venueId } }),

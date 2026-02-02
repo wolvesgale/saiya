@@ -14,6 +14,16 @@ enum UserRole {
   AGENT
 }
 
+enum PartyType {
+  AGENT
+  BROKER
+}
+
+enum CommissionType {
+  PERCENT
+  FIXED
+}
+
 enum CashHandlingType {
   HOLD
   TAKE_HOME
@@ -172,7 +182,16 @@ model Sale {
   agencyId        String
   date            DateTime
   amount          Float
-  createdByUserId String   // ★追加（DBに既にある想定：NOT NULL）
+
+  // ★ 追加（route.ts が使っている列）
+  createdByUserId String
+  partyType       PartyType
+  commissionType  CommissionType
+  commissionValue Float    @default(0)
+  parkingFee      Float    @default(0)
+  managerName     String   @default("")
+  memoAppendOnly  String?
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
