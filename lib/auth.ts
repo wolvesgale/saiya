@@ -2,6 +2,7 @@
 import crypto from 'crypto';
 import { cookies } from 'next/headers';
 import { getPrisma } from '@/lib/db';
+import type { SessionUser } from '@/lib/auth';
 
 // ===== パスワード =====
 const ITERATIONS = Number(process.env.PASSWORD_ITERATIONS ?? 100000);
@@ -152,4 +153,22 @@ export async function getSessionUserFromToken(token: string): Promise<SessionUse
     mustChangePassword: user.mustChangePassword ?? false,
     isActive: user.isActive ?? true,
   };
+}
+
+function getCookieValue(cookieHeader: string | null, name: string) {
+  if (!cookieHeader) return null;
+  const parts = cookieHeader.split(';').map((p) => p.trim());
+  for (const part of parts) {
+    if (part.startsWith(`${name}=`)) {
+      return decodeURIComponent(part.slice(name.length + 1));
+    }
+  }
+  return null;
+}
+
+// ✅ 互換: change-password 等が import しても落ちないようにする
+export async function getSessionUser(request: Request) {
+  const token = getCookieValue(request.headers.get('cookie'), 'saiya_session');
+  if (!token) return null;
+  return await getSessionUserFromToken(token);
 }
