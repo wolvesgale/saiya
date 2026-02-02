@@ -172,6 +172,7 @@ model Sale {
   agencyId        String
   date            DateTime
   amount          Float
+  createdByUserId String   // ★追加（DBに既にある想定：NOT NULL）
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
