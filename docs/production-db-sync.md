@@ -7,6 +7,7 @@ This app expects the production Postgres schema to match `prisma/schema.prisma`.
 - Use Supabase Pooler **Session** mode (usually 5432) for Prisma CLI in IPv4-only environments.
   Direct host (`db.<project-ref>.supabase.co`) may require IPv6 or an IPv4 add-on.
 - Use Supabase Pooler **Transaction** mode (usually 6543) for runtime `DATABASE_URL`.
+  - Add `pgbouncer=true&connection_limit=1` when using transaction pooler.
 - Node.js 18+ is recommended.
 - Set `DIRECT_URL` to the Session pooler connection in environments that run migrations.
   - If you cannot set it, use the same value as `DATABASE_URL` (see `.env.example`).

@@ -43,12 +43,25 @@ export async function GET() {
       xruleTenantError = tenantError instanceof Error ? tenantError.message : 'Unknown error';
     }
 
+    let prismaUrlHost: string | null = null;
+    let prismaUrlPort: string | null = null;
+    try {
+      const url = new URL(process.env.DATABASE_URL ?? '');
+      prismaUrlHost = url.hostname || null;
+      prismaUrlPort = url.port || null;
+    } catch {
+      prismaUrlHost = null;
+      prismaUrlPort = null;
+    }
+
     return NextResponse.json({
       ok: true,
       connection: dbInfoRows[0] ?? null,
       latestMigration,
       xruleTenantId,
       xruleTenantError,
+      prismaUrlHost,
+      prismaUrlPort,
     });
   } catch (error) {
     console.error('[health.db] error', error);

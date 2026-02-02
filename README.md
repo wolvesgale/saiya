@@ -24,6 +24,7 @@ npm run dev
 ## 環境変数
 ### 必須
 - `DATABASE_URL` : Supabase Pooler **Transaction** mode (通常 6543) を使う **ランタイム用** の接続文字列
+  - Pooler Transaction を使う場合は `pgbouncer=true&connection_limit=1` を付与する
 - `DIRECT_URL` : Supabase Pooler **Session** mode (通常 5432) を使う **Prisma CLI用** の接続文字列
   - IPv4-only 環境では direct 接続 (`db.<project-ref>.supabase.co`) は到達できない場合があるため、Session pooler を推奨
   - 未設定の場合は `DATABASE_URL` と同じ値を設定する（`.env.example` を参照）
