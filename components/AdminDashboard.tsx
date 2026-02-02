@@ -123,7 +123,6 @@ export default function AdminDashboard() {
       body: JSON.stringify({
         name: formData.get('name'),
         email: formData.get('email'),
-        shopName: formData.get('shopName'),
         password: formData.get('password'),
       }),
     });
@@ -131,7 +130,17 @@ export default function AdminDashboard() {
       setMessage('代理店を作成しました。');
       event.currentTarget.reset();
       refresh();
+      return;
     }
+    const payload = await response.json().catch(() => null);
+    if (payload?.error === 'validation') {
+      const details = Array.isArray(payload.details)
+        ? payload.details.map((detail: { field: string; message: string }) => `${detail.field}: ${detail.message}`)
+        : ['入力内容を確認してください。'];
+      setMessage(`代理店の作成に失敗しました。\n${details.join('\n')}`);
+      return;
+    }
+    setMessage(payload?.message ?? '代理店の作成に失敗しました。');
   };
 
   const handleUpdateAgency = async (agencyId: string, payload: { email: string | null; shopName: string | null; password?: string }) => {
@@ -314,12 +323,8 @@ export default function AdminDashboard() {
               <input id="agency-name" name="name" required />
             </div>
             <div>
-              <label htmlFor="agency-email">メール (任意)</label>
-              <input id="agency-email" name="email" type="email" />
-            </div>
-            <div>
-              <label htmlFor="agency-shop">屋号 (任意)</label>
-              <input id="agency-shop" name="shopName" />
+              <label htmlFor="agency-email">メール</label>
+              <input id="agency-email" name="email" type="email" required />
             </div>
             <div>
               <label htmlFor="agency-password">初期パスワード (任意)</label>

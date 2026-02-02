@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/db';
+import { getPrisma, resolveXruleTenantId } from '@/lib/db';
 import { requireSession, requireRoles, errorResponse } from '@/lib/api';
 import { hashPassword } from '@/lib/auth';
 
@@ -8,20 +8,25 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   const prisma = getPrisma();
-  const { user, response } = await requireSession(request);
-  if (response) return response;
-  if (!user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
-  const roleResponse = requireRoles(user.role, ['SUPER_ADMIN', 'ADMIN']);
-  if (roleResponse) return roleResponse;
+  try {
+    const { user, response } = await requireSession(request);
+    if (response) return response;
+    if (!user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+    const roleResponse = requireRoles(user.role, ['SUPER_ADMIN', 'ADMIN']);
+    if (roleResponse) return roleResponse;
 
-  const url = new URL(request.url);
-  const tenantId = user.role === 'SUPER_ADMIN' ? url.searchParams.get('tenantId') ?? undefined : user.tenantId ?? undefined;
+    const url = new URL(request.url);
+    const requestedTenantId = url.searchParams.get('tenantId') ?? undefined;
+    const tenantId = requestedTenantId ?? (await resolveXruleTenantId(prisma));
 
-  const agencies = await prisma.agency.findMany({
-    where: tenantId ? { tenantId } : {},
-    orderBy: { createdAt: 'desc' },
-  });
-  return NextResponse.json(agencies);
+    const agencies = await prisma.agency.findMany({
+      where: tenantId ? { tenantId } : {},
+      orderBy: { createdAt: 'desc' },
+    });
+    return NextResponse.json(agencies);
+  } catch (error) {
+    return errorResponse(error);
+  }
 }
 
 export async function POST(request: Request) {
@@ -34,22 +39,34 @@ export async function POST(request: Request) {
     if (roleResponse) return roleResponse;
 
     const payload = await request.json();
-    const tenantId = user.role === 'SUPER_ADMIN' ? payload.tenantId ?? user.tenantId : user.tenantId;
+    const name = payload.name?.toString().trim();
+    const email = payload.email?.toString().trim();
+    const requestedTenantId = payload.tenantId?.toString() || undefined;
+    const tenantId = requestedTenantId ?? (await resolveXruleTenantId(prisma));
+    const validationErrors: Array<{ field: string; message: string }> = [];
     if (!tenantId) {
-      return NextResponse.json({ message: 'Tenant required' }, { status: 400 });
+      validationErrors.push({ field: 'tenantId', message: 'Tenant required' });
     }
-    if (!payload.name) {
-      return NextResponse.json({ message: 'Name required' }, { status: 400 });
+    if (!name) {
+      validationErrors.push({ field: 'name', message: 'Name required' });
+    }
+    if (!email) {
+      validationErrors.push({ field: 'email', message: 'Email required' });
+    } else if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      validationErrors.push({ field: 'email', message: 'Email is invalid' });
+    }
+    if (validationErrors.length > 0) {
+      return NextResponse.json({ error: 'validation', details: validationErrors }, { status: 400 });
     }
 
-    const password = payload.password?.toString() || 'initpass';
+    const password = payload.initialPassword?.toString() || payload.password?.toString() || 'initpass';
     const passwordHash = await hashPassword(password);
 
     const agency = await prisma.agency.create({
       data: {
         tenantId,
-        name: payload.name,
-        email: payload.email ?? null,
+        name,
+        email,
         shopName: payload.shopName ?? null,
         passwordHash,
       },

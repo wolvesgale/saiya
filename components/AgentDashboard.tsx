@@ -56,12 +56,6 @@ const cashHandlingLabel = (value: string | null) => {
   return '未設定';
 };
 
-// 30分刻みの候補（必要なら15分刻みに変更可）
-const timeOptions: string[] = Array.from({ length: 48 }, (_, i) => {
-  const hh = String(Math.floor(i / 2)).padStart(2, '0');
-  const mm = i % 2 === 0 ? '00' : '30';
-  return `${hh}:${mm}`;
-});
 
 export default function AgentDashboard() {
   const [events, setEvents] = useState<EventSummary[]>([]);
@@ -353,11 +347,6 @@ export default function AgentDashboard() {
           ))}
         </ul>
 
-        <datalist id="time-options">
-          {timeOptions.map((option) => (
-            <option key={option} value={option} />
-          ))}
-        </datalist>
       </div>
     </div>
   );
