@@ -2,6 +2,7 @@
 import crypto from 'crypto';
 import { cookies } from 'next/headers';
 import { getPrisma } from '@/lib/db';
+import bcrypt from 'bcryptjs';
 
 // ===== Password hashing (PBKDF2) =====
 const DEFAULT_ITERATIONS = 100000;
@@ -26,36 +27,50 @@ export async function verifyPassword(password: string, stored: string) {
   try {
     if (!stored) return false;
 
-    const parts = stored.split(':');
-
-    // 互換: iter:salt:hash  or  salt:iter:hash
-    let iterations: number | null = null;
-    let salt: string | null = null;
-    let hash: string | null = null;
-
-    if (parts.length === 3) {
-      const [p1, p2, p3] = parts;
-
-      // iter:salt:hash
-      if (/^\d+$/.test(p1)) {
-        iterations = Number(p1);
-        salt = p2;
-        hash = p3;
+    // ✅ bcrypt互換（既存DBが $2a$... のため必須）
+    if (stored.startsWith('$2a$') || stored.startsWith('$2b$') || stored.startsWith('$2y$')) {
+      // 1) pepper付きで作っていた可能性も潰す
+      if (PEPPER) {
+        const okPepper = await bcrypt.compare(password + PEPPER, stored);
+        if (okPepper) return true;
       }
-      // salt:iter:hash
-      else if (/^\d+$/.test(p2)) {
-        iterations = Number(p2);
-        salt = p1;
-        hash = p3;
-      }
-    } else if (parts.length === 2) {
-      // 互換: salt:hash（昔こうしてた場合の救済）
-      salt = parts[0];
-      hash = parts[1];
-      iterations = Number.isFinite(ITERATIONS) && ITERATIONS > 0 ? ITERATIONS : DEFAULT_ITERATIONS;
-    } else {
-      return false;
+      // 2) 通常bcrypt
+      return await bcrypt.compare(password, stored);
     }
+
+    const parts = stored.split(':');
+    if (parts.length !== 3) return false;
+
+    let iterations = Number(parts[0]);
+    let salt = parts[1];
+    let hash = parts[2];
+
+    // salt:iter:hash 形式の可能性
+    if (!Number.isFinite(iterations) || iterations <= 0) {
+      const iter2 = Number(parts[1]);
+      const salt2 = parts[0];
+      const hash2 = parts[2];
+      if (!Number.isFinite(iter2) || iter2 <= 0) return false;
+      iterations = iter2;
+      salt = salt2;
+      hash = hash2;
+    }
+
+    // 1) まず現在のPEPPERで検証
+    const computed1 = pbkdf2Hex(password, salt, iterations, PEPPER);
+    if (safeEqualHex(hash, computed1)) return true;
+
+    // 2) PEPPER後付けで死んでるケース：pepper無しでも検証（後方互換）
+    if (PEPPER) {
+      const computed2 = pbkdf2Hex(password, salt, iterations, '');
+      if (safeEqualHex(hash, computed2)) return true;
+    }
+
+    return false;
+  } catch {
+    return false;
+  }
+}
 
     if (!iterations || iterations <= 0 || !salt || !hash) return false;
 
