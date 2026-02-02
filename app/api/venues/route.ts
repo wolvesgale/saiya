@@ -3,7 +3,13 @@ import { getPrisma, resolveXruleTenantId } from '@/lib/db';
 import { requireSession, requireRoles, errorResponse } from '@/lib/api';
 
 export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
+
+function normalizeTenantId(value: unknown): string | undefined {
+  if (value === null || value === undefined) return undefined;
+  const s = String(value).trim();
+  if (!s || s === 'null' || s === 'undefined') return undefined;
+  return s;
+}
 
 export async function GET(request: Request) {
   const prisma = getPrisma();
@@ -13,17 +19,14 @@ export async function GET(request: Request) {
     if (!user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
 
     const url = new URL(request.url);
-    const requestedTenantId = url.searchParams.get('tenantId') ?? undefined;
+    const requestedTenantId = normalizeTenantId(url.searchParams.get('tenantId'));
 
-    // tenantId 解決を統一：
-    // - SUPER_ADMIN: クエリの tenantId を優先。無ければ Xrule を解決（env or DB）
-    // - それ以外: user.tenantId を優先。無ければ Xrule を解決（env or DB）
+    // ✅ tenantId を必ず決める（SUPER_ADMINはクエリ優先、なければXruleにフォールバック）
     const tenantId =
       user.role === 'SUPER_ADMIN'
-        ? requestedTenantId ?? (await resolveXruleTenantId(prisma))
-        : user.tenantId ?? (await resolveXruleTenantId(prisma));
+        ? (requestedTenantId ?? (await resolveXruleTenantId(prisma)))
+        : (user.tenantId ?? (await resolveXruleTenantId(prisma)));
 
-    // AGENT は自分の担当（agencyId）が無いなら空配列
     if (user.role === 'AGENT' && !user.agencyId) {
       return NextResponse.json([]);
     }
@@ -63,20 +66,17 @@ export async function POST(request: Request) {
 
     const payload = await request.json();
 
-    // tenantId 解決を統一：
-    // - SUPER_ADMIN: payload.tenantId を優先。無ければ Xrule を解決（env or DB）
-    // - ADMIN: user.tenantId を優先。無ければ Xrule を解決（env or DB）
-    const requestedTenantId = payload.tenantId?.toString() || undefined;
+    const requestedTenantId = normalizeTenantId(payload?.tenantId);
     const tenantId =
       user.role === 'SUPER_ADMIN'
-        ? requestedTenantId ?? (await resolveXruleTenantId(prisma))
-        : user.tenantId ?? (await resolveXruleTenantId(prisma));
+        ? (requestedTenantId ?? user.tenantId ?? (await resolveXruleTenantId(prisma)))
+        : (user.tenantId ?? (await resolveXruleTenantId(prisma)));
 
     if (!tenantId) {
       return NextResponse.json({ message: 'Tenant required' }, { status: 400 });
     }
 
-    const name = payload.name?.toString().trim();
+    const name = payload?.name?.toString().trim();
     if (!name) {
       return NextResponse.json({ message: 'Name required' }, { status: 400 });
     }
