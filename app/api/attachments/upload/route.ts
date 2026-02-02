@@ -7,35 +7,39 @@ import { Readable } from 'stream';
 
 export const runtime = 'nodejs';
 
-function pickAllowedEntityType(entityTypeRaw: string) {
-  const allowed = new Set(Object.values(AttachmentEntityType));
-  if (!allowed.has(entityTypeRaw as AttachmentEntityType)) return null;
-  return entityTypeRaw as AttachmentEntityType;
-}
-
-async function inferTenantIdFromEntity(prisma: ReturnType<typeof getPrisma>, entityType: AttachmentEntityType, entityId: string) {
-  // NOTE: AttachmentEntityType の定義に合わせて必要なら追加してください。
-  // ここではまず VENUE / EVENT / AGENCY / INTERMEDIARY を推定で実装。
-  switch (entityType) {
-    case 'VENUE': {
-      const venue = await prisma.venue.findUnique({ where: { id: entityId }, select: { tenantId: true } });
-      return venue?.tenantId ?? null;
-    }
-    case 'EVENT': {
-      const event = await prisma.event.findUnique({ where: { id: entityId }, select: { tenantId: true } });
-      return event?.tenantId ?? null;
-    }
-    case 'AGENCY': {
-      const agency = await prisma.agency.findUnique({ where: { id: entityId }, select: { tenantId: true } });
-      return agency?.tenantId ?? null;
-    }
-    case 'INTERMEDIARY': {
-      const intermediary = await prisma.intermediary.findUnique({ where: { id: entityId }, select: { tenantId: true } });
-      return intermediary?.tenantId ?? null;
-    }
-    default:
-      return null;
+async function resolveTenantIdForEntity(
+  prisma: ReturnType<typeof getPrisma>,
+  entityType: AttachmentEntityType,
+  entityId: string
+): Promise<string | null> {
+  // ✅ ここは「あなたの Prisma schema に存在する entityType だけ」扱う
+  // いま UI から来るのは VENUE なので、最低限 VENUE は必須。
+  if (entityType === AttachmentEntityType.VENUE) {
+    const venue = await prisma.venue.findUnique({
+      where: { id: entityId },
+      select: { tenantId: true },
+    });
+    return venue?.tenantId ?? null;
   }
+
+  if (entityType === AttachmentEntityType.EVENT) {
+    const event = await prisma.event.findUnique({
+      where: { id: entityId },
+      select: { tenantId: true },
+    });
+    return event?.tenantId ?? null;
+  }
+
+  if (entityType === AttachmentEntityType.INTERMEDIARY) {
+    const intermediary = await prisma.intermediary.findUnique({
+      where: { id: entityId },
+      select: { tenantId: true },
+    });
+    return intermediary?.tenantId ?? null;
+  }
+
+  // schema に存在しない種類を無理に扱わない（将来追加時にここへ追記）
+  return null;
 }
 
 export async function POST(request: Request) {
@@ -50,49 +54,45 @@ export async function POST(request: Request) {
 
     const formData = await request.formData();
     const file = formData.get('file');
-    const entityType = formData.get('entityType');
-    const entityId = formData.get('entityId');
+    const entityTypeRaw = formData.get('entityType');
+    const entityIdRaw = formData.get('entityId');
 
-    if (!(file instanceof File) || !entityType || !entityId) {
+    if (!(file instanceof File) || !entityTypeRaw || !entityIdRaw) {
       return NextResponse.json({ message: 'Invalid upload payload' }, { status: 400 });
     }
 
-    const entityIdValue = String(entityId ?? '').trim();
-    if (!entityIdValue) {
-      return NextResponse.json({ message: 'Invalid entityId' }, { status: 400 });
-    }
+    const entityId = String(entityIdRaw ?? '').trim();
+    if (!entityId) return NextResponse.json({ message: 'Invalid entityId' }, { status: 400 });
 
-    const entityTypeRaw = String(entityType ?? '');
-    const entityTypeEnum = pickAllowedEntityType(entityTypeRaw);
-    if (!entityTypeEnum) {
+    const entityTypeStr = String(entityTypeRaw ?? '').trim();
+    const allowedEntityTypes = new Set(Object.values(AttachmentEntityType));
+    if (!allowedEntityTypes.has(entityTypeStr as AttachmentEntityType)) {
       return NextResponse.json({ message: 'Invalid entityType' }, { status: 400 });
     }
+    const entityType = entityTypeStr as AttachmentEntityType;
 
-    // tenantId: 1) formData or user.tenantId 2) entity 逆引き
-    let tenantId: string | null = null;
+    // ✅ tenantId はログインユーザー基準
+    const tenantId =
+      user.role === 'SUPER_ADMIN'
+        ? (formData.get('tenantId') ?? user.tenantId)
+        : user.tenantId;
 
-    if (user.role === 'SUPER_ADMIN') {
-      const fromForm = formData.get('tenantId');
-      tenantId = (typeof fromForm === 'string' && fromForm.trim()) ? fromForm.trim() : (user.tenantId ?? null);
-    } else {
-      tenantId = user.tenantId ?? null;
-    }
-
-    if (!tenantId) {
-      tenantId = await inferTenantIdFromEntity(prisma, entityTypeEnum, entityIdValue);
-    }
-
-    if (!tenantId) {
+    if (!tenantId || typeof tenantId !== 'string') {
       return NextResponse.json({ message: 'Tenant required' }, { status: 400 });
     }
 
-    // テナント越境防止（SUPER_ADMIN は許可）
-    if (user.role !== 'SUPER_ADMIN' && user.tenantId && tenantId !== user.tenantId) {
+    // ✅ entity が同 tenant に属しているかチェック（安全側）
+    const entityTenantId = await resolveTenantIdForEntity(prisma, entityType, entityId);
+    if (!entityTenantId) {
+      return NextResponse.json({ message: 'Invalid entity' }, { status: 400 });
+    }
+    if (entityTenantId !== tenantId) {
       return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     }
 
     const storageProvider = process.env.FILE_STORAGE_PROVIDER ?? 'blob';
 
+    // --- Google Drive ---
     if (storageProvider === 'gdrive') {
       const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
       const serviceAccountBase64 = process.env.GOOGLE_SERVICE_ACCOUNT_JSON_BASE64;
@@ -137,8 +137,8 @@ export async function POST(request: Request) {
       const attachment = await prisma.attachment.create({
         data: {
           tenantId,
-          entityType: entityTypeEnum,
-          entityId: entityIdValue,
+          entityType,
+          entityId,
           blobUrl: null,
           driveFileId,
           driveWebViewLink: driveResponse.data.webViewLink ?? null,
@@ -152,21 +152,19 @@ export async function POST(request: Request) {
       return NextResponse.json(attachment, { status: 201 });
     }
 
+    // --- Vercel Blob ---
     if (storageProvider !== 'blob') {
       return NextResponse.json({ message: 'Invalid FILE_STORAGE_PROVIDER' }, { status: 500 });
     }
 
-    const safeName = file.name.replace(/[^\w.\-()]+/g, '_');
-    const uniqueKey = `attachments/${tenantId}/${entityTypeEnum}/${entityIdValue}/${Date.now()}-${safeName}`;
-
-    // put() / access の仕様は Vercel Blob に準拠 
-    const blob = await put(uniqueKey, file, { access: 'public' });
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const blob = await put(`attachments/${tenantId}/${entityType}/${entityId}/${safeName}`, file, { access: 'public' });
 
     const attachment = await prisma.attachment.create({
       data: {
         tenantId,
-        entityType: entityTypeEnum,
-        entityId: entityIdValue,
+        entityType,
+        entityId,
         blobUrl: blob.url,
         driveFileId: null,
         driveWebViewLink: null,
