@@ -1,7 +1,7 @@
 // app/api/auth/login/route.ts
 import { NextResponse } from 'next/server';
 import { getPrisma } from '@/lib/db';
-import { createSession, verifyPassword } from '@/lib/auth';
+import { createSession, verifyPassword, type SessionUser } from '@/lib/auth';
 import { errorResponse } from '@/lib/api';
 
 export const runtime = 'nodejs';
@@ -11,20 +11,31 @@ export async function POST(request: Request) {
     const prisma = getPrisma();
     const { email, password } = await request.json();
 
-    const emailNorm = (email ?? '').toString().trim().toLowerCase();
-    const pass = (password ?? '').toString();
+    const emailValue = (email ?? '').toString().trim().toLowerCase();
+    const passwordValue = (password ?? '').toString();
 
-    if (!emailNorm || !pass) {
+    if (!emailValue || !passwordValue) {
       return NextResponse.json({ message: 'Email and password required' }, { status: 400 });
     }
 
-    // 1) まず user を探す
-    const user = await prisma.user.findUnique({ where: { email: emailNorm } });
+    // 1) USER を優先
+    const user = await prisma.user.findUnique({ where: { email: emailValue } });
     if (user && user.passwordHash && user.isActive) {
-      const ok = await verifyPassword(pass, user.passwordHash);
+      const ok = await verifyPassword(passwordValue, user.passwordHash);
       if (!ok) return NextResponse.json({ message: 'Invalid credentials' }, { status: 401 });
 
-      await createSession(user);
+      const sessionUser: SessionUser = {
+        principalType: 'USER',
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        tenantId: user.tenantId ?? null,
+        agencyId: user.agencyId ?? null,
+        mustChangePassword: user.mustChangePassword ?? false,
+        isActive: user.isActive ?? true,
+      };
+
+      await createSession(sessionUser);
 
       return NextResponse.json({
         role: user.role,
@@ -32,25 +43,27 @@ export async function POST(request: Request) {
       });
     }
 
-    // 2) user がいなければ agency を探す（= 代理店ログイン）
-    const agency = await prisma.agency.findFirst({ where: { email: emailNorm } });
+    // 2) AGENCY（代理店）を照合
+    const agency = await prisma.agency.findUnique({ where: { email: emailValue } });
     if (!agency || !agency.passwordHash) {
       return NextResponse.json({ message: 'Invalid credentials' }, { status: 401 });
     }
 
-    const ok = await verifyPassword(pass, agency.passwordHash);
+    const ok = await verifyPassword(passwordValue, agency.passwordHash);
     if (!ok) return NextResponse.json({ message: 'Invalid credentials' }, { status: 401 });
 
-    // createSession が User 前提なら、lib/auth 側で agency も扱えるようにしてある想定
-    // （あなたの実装では createSession が cookie をセットしているはず）
-    await createSession({
+    const sessionAgency: SessionUser = {
+      principalType: 'AGENCY',
       id: agency.id,
       email: agency.email,
       role: 'AGENT',
-      tenantId: agency.tenantId,
+      tenantId: agency.tenantId ?? null,
       agencyId: agency.id,
       mustChangePassword: false,
-    } as any);
+      isActive: true,
+    };
+
+    await createSession(sessionAgency);
 
     return NextResponse.json({
       role: 'AGENT',
