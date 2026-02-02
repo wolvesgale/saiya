@@ -1,3 +1,4 @@
+// lib/api.ts
 import { NextResponse } from 'next/server';
 import { getSessionUserFromToken } from '@/lib/auth';
 
