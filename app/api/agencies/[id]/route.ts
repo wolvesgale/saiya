@@ -9,20 +9,24 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   const prisma = getPrisma();
-  const { user, response } = await requireSession(request);
-  if (response) return response;
-  if (!user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+  try {
+    const { user, response } = await requireSession(request);
+    if (response) return response;
+    if (!user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
 
-  const agency = await prisma.agency.findUnique({ where: { id: params.id } });
-  if (!agency) return NextResponse.json({ message: 'Not found' }, { status: 404 });
-  if (user.role !== 'SUPER_ADMIN' && agency.tenantId !== user.tenantId) {
-    return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
-  }
-  if (user.role === 'AGENT' && agency.id !== user.agencyId) {
-    return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
-  }
+    const agency = await prisma.agency.findUnique({ where: { id: params.id } });
+    if (!agency) return NextResponse.json({ message: 'Not found' }, { status: 404 });
+    if (user.role !== 'SUPER_ADMIN' && agency.tenantId !== user.tenantId) {
+      return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    }
+    if (user.role === 'AGENT' && agency.id !== user.agencyId) {
+      return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    }
 
-  return NextResponse.json(agency);
+    return NextResponse.json(agency);
+  } catch (error) {
+    return errorResponse(error);
+  }
 }
 
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
