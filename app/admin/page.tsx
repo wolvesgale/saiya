@@ -1,15 +1,47 @@
 import AdminDashboard from '@/components/AdminDashboard';
+import { headers, cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
 
-export default function AdminPage() {
-  return (
-    <div className="max-w-6xl mx-auto px-6 py-10 space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Admin Dashboard</h1>
-        <p className="text-slate-400 mt-2">
-          左側の代理店選択は次のUI改修でモーダル化予定です。現在はID入力で紐付けできます。
-        </p>
-      </div>
-      <AdminDashboard />
-    </div>
-  );
+export const dynamic = 'force-dynamic';
+
+function buildBaseUrl() {
+  const h = headers();
+  const proto = h.get('x-forwarded-proto') ?? 'https';
+  const host = h.get('x-forwarded-host') ?? h.get('host');
+  if (!host) return null;
+  return `${proto}://${host}`;
+}
+
+function buildCookieHeader() {
+  const cookieStore = cookies();
+  const all = cookieStore.getAll();
+  return all.map((c) => `${c.name}=${c.value}`).join('; ');
+}
+
+export default async function AdminPage() {
+  const baseUrl = buildBaseUrl();
+  if (!baseUrl) {
+    redirect('/login');
+  }
+
+  const meRes = await fetch(`${baseUrl}/api/auth/me`, {
+    headers: {
+      cookie: buildCookieHeader(),
+    },
+    cache: 'no-store',
+  });
+
+  if (!meRes.ok) {
+    redirect('/login');
+  }
+
+  const payload = await meRes.json().catch(() => null);
+  const role = payload?.user?.role;
+
+  if (role !== 'SUPER_ADMIN' && role !== 'ADMIN') {
+    // 代理店(AGENT)は admin 画面に入れない
+    redirect('/');
+  }
+
+  return <AdminDashboard />;
 }
