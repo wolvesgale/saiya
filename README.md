@@ -23,8 +23,9 @@ npm run dev
 
 ## 環境変数
 ### 必須
-- `DATABASE_URL` : Supabase Pooler (pgbouncer / 6543) など **ランタイム用** の接続文字列
-- `DIRECT_URL` : Supabase non-pooling (direct / 5432) など **migrate用** の接続文字列
+- `DATABASE_URL` : Supabase Pooler **Transaction** mode (通常 6543) を使う **ランタイム用** の接続文字列
+- `DIRECT_URL` : Supabase Pooler **Session** mode (通常 5432) を使う **Prisma CLI用** の接続文字列
+  - IPv4-only 環境では direct 接続 (`db.<project-ref>.supabase.co`) は到達できない場合があるため、Session pooler を推奨
   - 未設定の場合は `DATABASE_URL` と同じ値を設定する（`.env.example` を参照）
   - Vercelの環境変数で **空欄のまま登録** すると Prisma が落ちるため、空欄なら削除するか正しい値を設定
   - Vercel/Supabaseでは `POSTGRES_PRISMA_URL` / `POSTGRES_URL_NON_POOLING` があれば build・runtime が自動補完
@@ -74,6 +75,10 @@ npx prisma migrate resolve --rolled-back 20260202001000_seed_xrule_tenant
 npx prisma migrate resolve --applied 20260202001000_seed_xrule_tenant
 ```
 復旧後に `npx prisma migrate deploy` を実行します。
+
+### セキュリティ注意
+- `.env` などの秘密情報は **絶対にコミットしない** でください。
+- もし過去にコミットしてしまった場合は、DBパスワードやトークンを **必ずローテーション** してください。
 
 ## 認証フロー
 - `/login` からログイン

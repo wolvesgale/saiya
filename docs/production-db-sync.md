@@ -4,9 +4,11 @@ This app expects the production Postgres schema to match `prisma/schema.prisma`.
 
 ## Prerequisites
 
-- A **non-pooling** Supabase/Postgres connection string (direct 5432), such as `POSTGRES_URL_NON_POOLING` or `POSTGRES_PRISMA_URL`.
+- Use Supabase Pooler **Session** mode (usually 5432) for Prisma CLI in IPv4-only environments.
+  Direct host (`db.<project-ref>.supabase.co`) may require IPv6 or an IPv4 add-on.
+- Use Supabase Pooler **Transaction** mode (usually 6543) for runtime `DATABASE_URL`.
 - Node.js 18+ is recommended.
-- Set `DIRECT_URL` to the non-pooling connection in environments that run migrations.
+- Set `DIRECT_URL` to the Session pooler connection in environments that run migrations.
   - If you cannot set it, use the same value as `DATABASE_URL` (see `.env.example`).
   - Avoid saving `DIRECT_URL` as an empty string in Vercel env vars; remove it or set a real direct URL.
   - On Vercel/Supabase, the build script and runtime can auto-resolve `DATABASE_URL` / `DIRECT_URL` from `POSTGRES_PRISMA_URL` and `POSTGRES_URL_NON_POOLING`.
