@@ -1,24 +1,9 @@
 // lib/api.ts
 import { NextResponse } from 'next/server';
-import { getSessionUserFromToken } from '@/lib/auth';
-
-function getCookieValue(cookieHeader: string | null, name: string) {
-  if (!cookieHeader) return null;
-  const parts = cookieHeader.split(';').map((part) => part.trim());
-  for (const part of parts) {
-    if (part.startsWith(`${name}=`)) {
-      return decodeURIComponent(part.slice(name.length + 1));
-    }
-  }
-  return null;
-}
+import { getSessionUserFromRequest } from '@/lib/auth';
 
 export async function requireSession(request: Request) {
-  const token = getCookieValue(request.headers.get('cookie'), 'saiya_session');
-  if (!token) {
-    return { user: null, response: NextResponse.json({ message: 'Unauthorized' }, { status: 401 }) };
-  }
-  const user = await getSessionUserFromToken(token);
+  const user = await getSessionUserFromRequest(request);
   if (!user) {
     return { user: null, response: NextResponse.json({ message: 'Unauthorized' }, { status: 401 }) };
   }
