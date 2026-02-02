@@ -1,12 +1,17 @@
 function getServiceAccount() {
-  const encoded = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  const encoded = process.env.GOOGLE_SERVICE_ACCOUNT_JSON_BASE64;
   if (!encoded) return null;
-  const json = Buffer.from(encoded, 'base64').toString('utf-8');
-  return JSON.parse(json);
+  try {
+    const json = Buffer.from(encoded, 'base64').toString('utf-8');
+    return JSON.parse(json);
+  } catch (error) {
+    console.warn('[googleSheets] failed to parse service account JSON', error);
+    return null;
+  }
 }
 
 function getSheetName() {
-  return process.env.SHEET_MONTHLY_SALES_NAME;
+  return process.env.GOOGLE_SHEETS_SHEET_NAME;
 }
 
 function toNumber(value: string | undefined) {
@@ -55,7 +60,7 @@ export async function appendDailySales(agencyName: string, venueName: string, da
     return;
   }
   const { google } = googleApis;
-  const sheetId = process.env.GOOGLE_SHEETS_ID;
+  const sheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
   const sheetName = getSheetName();
   const serviceAccount = getServiceAccount();
   const scope = process.env.GOOGLE_SHEETS_SCOPE ?? 'https://www.googleapis.com/auth/spreadsheets';
@@ -65,70 +70,74 @@ export async function appendDailySales(agencyName: string, venueName: string, da
     return;
   }
 
-  const auth = new google.auth.JWT({
-    email: serviceAccount.client_email,
-    key: serviceAccount.private_key,
-    scopes: [scope],
-  });
-  const sheets = google.sheets({ version: 'v4', auth });
+  try {
+    const auth = new google.auth.JWT({
+      email: serviceAccount.client_email,
+      key: serviceAccount.private_key,
+      scopes: [scope],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
 
-  const range = `${sheetName}!A1:Z200`;
-  const valuesResponse = await sheets.spreadsheets.values.get({
-    spreadsheetId: sheetId,
-    range,
-  });
-  const values = (valuesResponse.data.values ?? []) as string[][];
+    const range = `${sheetName}!A1:Z200`;
+    const valuesResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId: sheetId,
+      range,
+    });
+    const values = (valuesResponse.data.values ?? []) as string[][];
 
-  let targetBlock = SHEET_BLOCKS.find((block) => getCellValue(values, block.agencyCell) === agencyName);
-  if (!targetBlock) {
-    targetBlock = SHEET_BLOCKS.find((block) => getCellValue(values, block.agencyCell) === '');
+    let targetBlock = SHEET_BLOCKS.find((block) => getCellValue(values, block.agencyCell) === agencyName);
     if (!targetBlock) {
-      console.warn('[googleSheets] no available agency block', agencyName);
-      return;
+      targetBlock = SHEET_BLOCKS.find((block) => getCellValue(values, block.agencyCell) === '');
+      if (!targetBlock) {
+        console.warn('[googleSheets] no available agency block', agencyName);
+        return;
+      }
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: sheetId,
+        range: `${sheetName}!${targetBlock.agencyCell}`,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: { values: [[agencyName]] },
+      });
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: sheetId,
+        range: `${sheetName}!${targetBlock.nameCell}`,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: { values: [[agencyName]] },
+      });
     }
+
+    const weekIndex = getWeekIndex(date);
+    const dayOffset = (date.getDate() - 1) % 7;
+    const dailyRow = 6 + weekIndex * 7 + dayOffset;
+    const columnLetter = targetBlock.dailyColumn;
+    const cellRange = `${sheetName}!${columnLetter}${dailyRow}`;
+    const currentValue = toNumber(getCellValue(values, `${columnLetter}${dailyRow}`));
+    const updatedValue = currentValue + amount;
+
     await sheets.spreadsheets.values.update({
       spreadsheetId: sheetId,
-      range: `${sheetName}!${targetBlock.agencyCell}`,
+      range: cellRange,
       valueInputOption: 'USER_ENTERED',
-      requestBody: { values: [[agencyName]] },
+      requestBody: { values: [[updatedValue]] },
     });
+
     await sheets.spreadsheets.values.update({
       spreadsheetId: sheetId,
-      range: `${sheetName}!${targetBlock.nameCell}`,
+      range: `${sheetName}!${targetBlock.venueCell}`,
       valueInputOption: 'USER_ENTERED',
-      requestBody: { values: [[agencyName]] },
+      requestBody: { values: [[venueName]] },
     });
+
+    const summaryCurrentValue = toNumber(getCellValue(values, targetBlock.totalCell));
+    const summaryUpdatedValue = summaryCurrentValue + amount;
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: sheetId,
+      range: `${sheetName}!${targetBlock.totalCell}`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [[summaryUpdatedValue]] },
+    });
+  } catch (error) {
+    console.warn('[googleSheets] appendDailySales failed', error);
   }
-
-  const weekIndex = getWeekIndex(date);
-  const dayOffset = (date.getDate() - 1) % 7;
-  const dailyRow = 6 + weekIndex * 7 + dayOffset;
-  const columnLetter = targetBlock.dailyColumn;
-  const cellRange = `${sheetName}!${columnLetter}${dailyRow}`;
-  const currentValue = toNumber(getCellValue(values, `${columnLetter}${dailyRow}`));
-  const updatedValue = currentValue + amount;
-
-  await sheets.spreadsheets.values.update({
-    spreadsheetId: sheetId,
-    range: cellRange,
-    valueInputOption: 'USER_ENTERED',
-    requestBody: { values: [[updatedValue]] },
-  });
-
-  await sheets.spreadsheets.values.update({
-    spreadsheetId: sheetId,
-    range: `${sheetName}!${targetBlock.venueCell}`,
-    valueInputOption: 'USER_ENTERED',
-    requestBody: { values: [[venueName]] },
-  });
-
-  const summaryCurrentValue = toNumber(getCellValue(values, targetBlock.totalCell));
-  const summaryUpdatedValue = summaryCurrentValue + amount;
-
-  await sheets.spreadsheets.values.update({
-    spreadsheetId: sheetId,
-    range: `${sheetName}!${targetBlock.totalCell}`,
-    valueInputOption: 'USER_ENTERED',
-    requestBody: { values: [[summaryUpdatedValue]] },
-  });
 }

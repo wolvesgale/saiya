@@ -40,6 +40,19 @@ type Sale = {
 
 type SummaryResponse = {
   agencyTotals: Record<string, number>;
+  venueAverages?: Record<string, number>;
+};
+
+type WeeklySummaryItem = {
+  agencyId: string;
+  agencyName: string;
+  week1: number;
+  week2: number;
+  week3: number;
+  week4: number;
+  week5: number;
+  total: number;
+  prevMonthTotal: number;
 };
 
 type ReportPrompt = {
@@ -62,6 +75,7 @@ export default function AgentDashboard() {
   const [venues, setVenues] = useState<VenueSummary[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
   const [summary, setSummary] = useState<SummaryResponse | null>(null);
+  const [weeklySummary, setWeeklySummary] = useState<WeeklySummaryItem[]>([]);
 
   const [message, setMessage] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
@@ -85,8 +99,15 @@ export default function AgentDashboard() {
   const refreshSummary = async () => {
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth() + 1;
-    const response = await fetch(`/api/sales/summary?year=${year}&month=${month}`);
-    if (response.ok) setSummary(await response.json());
+    const [summaryResponse, weeklyResponse] = await Promise.all([
+      fetch(`/api/sales/summary?year=${year}&month=${month}`),
+      fetch(`/api/sales/summary/weekly?year=${year}&month=${month}`),
+    ]);
+    if (summaryResponse.ok) setSummary(await summaryResponse.json());
+    if (weeklyResponse.ok) {
+      const payload = await weeklyResponse.json();
+      setWeeklySummary(payload.items ?? []);
+    }
   };
 
   useEffect(() => {
@@ -209,6 +230,63 @@ export default function AgentDashboard() {
       <div className="bg-slate-900/70 border border-slate-800 p-6 rounded-lg">
         <h2 className="text-lg font-semibold mb-2">今月の累計売上</h2>
         <div className="text-2xl font-semibold text-indigo-200">{monthlyTotal.toLocaleString()} 円</div>
+      </div>
+
+      <div className="bg-slate-900/70 border border-slate-800 p-6 rounded-lg">
+        <h2 className="text-lg font-semibold mb-4">週次売上（当月）</h2>
+        <div className="overflow-auto">
+          <table className="w-full text-sm text-slate-300">
+            <thead>
+              <tr className="text-left text-slate-400">
+                <th className="py-2">代理店</th>
+                <th className="py-2">1週目</th>
+                <th className="py-2">2週目</th>
+                <th className="py-2">3週目</th>
+                <th className="py-2">4週目</th>
+                <th className="py-2">5週目</th>
+                <th className="py-2">合計</th>
+                <th className="py-2">前月合計</th>
+              </tr>
+            </thead>
+            <tbody>
+              {weeklySummary.map((item) => (
+                <tr key={item.agencyId} className="border-t border-slate-800">
+                  <td className="py-2">{item.agencyName}</td>
+                  <td className="py-2">{item.week1.toLocaleString()}</td>
+                  <td className="py-2">{item.week2.toLocaleString()}</td>
+                  <td className="py-2">{item.week3.toLocaleString()}</td>
+                  <td className="py-2">{item.week4.toLocaleString()}</td>
+                  <td className="py-2">{item.week5.toLocaleString()}</td>
+                  <td className="py-2">{item.total.toLocaleString()}</td>
+                  <td className="py-2">{item.prevMonthTotal.toLocaleString()}</td>
+                </tr>
+              ))}
+              {!weeklySummary.length ? (
+                <tr className="border-t border-slate-800">
+                  <td className="py-2 text-slate-400" colSpan={8}>
+                    売上データがありません。
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="bg-slate-900/70 border border-slate-800 p-6 rounded-lg">
+        <h2 className="text-lg font-semibold mb-4">会場別平均売上（当月）</h2>
+        <div className="space-y-2 text-sm text-slate-300">
+          {venues.map((venue) => {
+            const average = summary?.venueAverages?.[venue.id] ?? 0;
+            return (
+              <div key={venue.id} className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <span>{venue.name}</span>
+                <span className="text-slate-200">{average.toLocaleString()} 円</span>
+              </div>
+            );
+          })}
+          {!venues.length ? <div className="text-slate-400">会場データがありません。</div> : null}
+        </div>
       </div>
 
       <div className="bg-slate-900/70 border border-slate-800 p-6 rounded-lg">

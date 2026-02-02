@@ -57,6 +57,26 @@ type SummaryResponse = {
   overallAverage: number;
 };
 
+type WeeklySummaryItem = {
+  agencyId: string;
+  agencyName: string;
+  week1: number;
+  week2: number;
+  week3: number;
+  week4: number;
+  week5: number;
+  total: number;
+  prevMonthTotal: number;
+};
+
+type VenueDailyItem = {
+  venueId: string;
+  venueName: string;
+  total: number;
+  count: number;
+  average: number;
+};
+
 type SectionKey = 'agency' | 'user' | 'intermediary' | 'venue' | 'event' | 'global';
 
 const cashHandlingOptions = [
@@ -71,6 +91,8 @@ export default function AdminDashboard() {
   const [events, setEvents] = useState<Event[]>([]);
   const [intermediaries, setIntermediaries] = useState<Intermediary[]>([]);
   const [summary, setSummary] = useState<SummaryResponse | null>(null);
+  const [weeklySummary, setWeeklySummary] = useState<WeeklySummaryItem[]>([]);
+  const [venueDailySummary, setVenueDailySummary] = useState<VenueDailyItem[]>([]);
   const [messages, setMessages] = useState<Record<SectionKey, string | null>>({
     agency: null,
     user: null,
@@ -80,6 +102,16 @@ export default function AdminDashboard() {
     global: null,
   });
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [venueFrom, setVenueFrom] = useState<string>('');
+  const [venueTo, setVenueTo] = useState<string>('');
+
+  const formatDateInput = (date: Date) => date.toISOString().slice(0, 10);
+
+  const getMonthDateRange = (date: Date) => {
+    const start = new Date(date.getFullYear(), date.getMonth(), 1);
+    const end = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+    return { start, end };
+  };
 
   const timeOptions = useMemo(() => {
     const options: string[] = [];
@@ -114,9 +146,25 @@ export default function AdminDashboard() {
   const refreshSummary = async (date: Date) => {
     const year = date.getFullYear();
     const month = date.getMonth() + 1;
-    const response = await fetch(`/api/sales/summary?year=${year}&month=${month}`);
+    const [summaryResponse, weeklyResponse] = await Promise.all([
+      fetch(`/api/sales/summary?year=${year}&month=${month}`),
+      fetch(`/api/sales/summary/weekly?year=${year}&month=${month}`),
+    ]);
+    if (summaryResponse.ok) {
+      setSummary(await summaryResponse.json());
+    }
+    if (weeklyResponse.ok) {
+      const payload = await weeklyResponse.json();
+      setWeeklySummary(payload.items ?? []);
+    }
+  };
+
+  const refreshVenueDailySummary = async (from: string, to: string) => {
+    if (!from || !to) return;
+    const response = await fetch(`/api/sales/summary/venue-daily?from=${from}&to=${to}`);
     if (response.ok) {
-      setSummary(await response.json());
+      const payload = await response.json();
+      setVenueDailySummary(payload.items ?? []);
     }
   };
 
@@ -126,7 +174,16 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     refreshSummary(currentMonth);
+    const { start, end } = getMonthDateRange(currentMonth);
+    setVenueFrom(formatDateInput(start));
+    setVenueTo(formatDateInput(end));
   }, [currentMonth]);
+
+  useEffect(() => {
+    if (venueFrom && venueTo) {
+      refreshVenueDailySummary(venueFrom, venueTo);
+    }
+  }, [venueFrom, venueTo]);
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' }).catch(() => null);
@@ -863,6 +920,107 @@ export default function AdminDashboard() {
                   </tr>
                 );
               })}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="bg-slate-900/70 border border-slate-800 p-6 rounded-lg">
+        <h2 className="text-lg font-semibold mb-4">代理店別 週次売上（当月）</h2>
+        <div className="overflow-auto">
+          <table className="w-full text-sm text-slate-300">
+            <thead>
+              <tr className="text-left text-slate-400">
+                <th className="py-2">代理店</th>
+                <th className="py-2">1週目</th>
+                <th className="py-2">2週目</th>
+                <th className="py-2">3週目</th>
+                <th className="py-2">4週目</th>
+                <th className="py-2">5週目</th>
+                <th className="py-2">合計</th>
+                <th className="py-2">前月合計</th>
+              </tr>
+            </thead>
+            <tbody>
+              {weeklySummary.map((item) => (
+                <tr key={item.agencyId} className="border-t border-slate-800">
+                  <td className="py-2">{item.agencyName}</td>
+                  <td className="py-2">{item.week1.toLocaleString()}</td>
+                  <td className="py-2">{item.week2.toLocaleString()}</td>
+                  <td className="py-2">{item.week3.toLocaleString()}</td>
+                  <td className="py-2">{item.week4.toLocaleString()}</td>
+                  <td className="py-2">{item.week5.toLocaleString()}</td>
+                  <td className="py-2">{item.total.toLocaleString()}</td>
+                  <td className="py-2">{item.prevMonthTotal.toLocaleString()}</td>
+                </tr>
+              ))}
+              {!weeklySummary.length ? (
+                <tr className="border-t border-slate-800">
+                  <td className="py-2 text-slate-400" colSpan={8}>
+                    売上データがありません。
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="bg-slate-900/70 border border-slate-800 p-6 rounded-lg">
+        <h2 className="text-lg font-semibold mb-4">会場別 日次平均売上</h2>
+        <div className="flex flex-wrap items-end gap-3 mb-4 text-sm text-slate-300">
+          <label className="flex flex-col gap-1">
+            期間（開始）
+            <input
+              className="bg-slate-950/40 border border-slate-700 rounded px-3 py-2 text-slate-100"
+              type="date"
+              value={venueFrom}
+              onChange={(event) => setVenueFrom(event.target.value)}
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            期間（終了）
+            <input
+              className="bg-slate-950/40 border border-slate-700 rounded px-3 py-2 text-slate-100"
+              type="date"
+              value={venueTo}
+              onChange={(event) => setVenueTo(event.target.value)}
+            />
+          </label>
+          <button
+            className="bg-slate-800 text-slate-200 px-4 py-2 rounded"
+            type="button"
+            onClick={() => refreshVenueDailySummary(venueFrom, venueTo)}
+          >
+            更新
+          </button>
+        </div>
+        <div className="overflow-auto">
+          <table className="w-full text-sm text-slate-300">
+            <thead>
+              <tr className="text-left text-slate-400">
+                <th className="py-2">会場</th>
+                <th className="py-2">合計</th>
+                <th className="py-2">件数</th>
+                <th className="py-2">日次平均</th>
+              </tr>
+            </thead>
+            <tbody>
+              {venueDailySummary.map((item) => (
+                <tr key={item.venueId} className="border-t border-slate-800">
+                  <td className="py-2">{item.venueName}</td>
+                  <td className="py-2">{item.total.toLocaleString()}</td>
+                  <td className="py-2">{item.count.toLocaleString()}</td>
+                  <td className="py-2">{item.average.toLocaleString()}</td>
+                </tr>
+              ))}
+              {!venueDailySummary.length ? (
+                <tr className="border-t border-slate-800">
+                  <td className="py-2 text-slate-400" colSpan={4}>
+                    期間内の売上がありません。
+                  </td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
         </div>
