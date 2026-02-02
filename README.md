@@ -23,7 +23,13 @@ npm run dev
 
 ## 環境変数
 ### 必須
-- `DATABASE_URL` : Postgres接続文字列（Supabase / Vercel Postgresの接続文字列）
+- `DATABASE_URL` : Supabase Pooler **Transaction** mode (通常 6543) を使う **ランタイム用** の接続文字列
+- `DIRECT_URL` : Supabase Pooler **Session** mode (通常 5432) を使う **Prisma CLI用** の接続文字列
+  - IPv4-only 環境では direct 接続 (`db.<project-ref>.supabase.co`) は到達できない場合があるため、Session pooler を推奨
+  - 未設定の場合は `DATABASE_URL` と同じ値を設定する（`.env.example` を参照）
+  - Vercelの環境変数で **空欄のまま登録** すると Prisma が落ちるため、空欄なら削除するか正しい値を設定
+  - Vercel/Supabaseでは `POSTGRES_PRISMA_URL` / `POSTGRES_URL_NON_POOLING` があれば build・runtime が自動補完
+- `XRULE_TENANT_ID` : 任意（単一テナント運用の固定テナントID。未設定ならDBから `Tenant.name = 'Xrule'` を解決）
 - `FILE_STORAGE_PROVIDER` : `blob`（デフォルト）/ `gdrive`
 - `BLOB_READ_WRITE_TOKEN` : Vercel BlobのRWトークン（`FILE_STORAGE_PROVIDER=blob` の場合）
 
@@ -56,9 +62,24 @@ npm run seed
 ## 本番DBへの反映（Vercelでは自動でseedされません）
 本番DBに初期管理者が存在しないとログインできません。Vercelの自動ビルドでは seed は実行されないため、手動で実行してください。
 ```bash
-DATABASE_URL="本番の接続文字列" npx prisma migrate deploy
-DATABASE_URL="本番の接続文字列" npx prisma db seed
+DATABASE_URL="Pooler接続文字列" DIRECT_URL="Direct接続文字列" npx prisma migrate deploy
+DATABASE_URL="Pooler接続文字列" DIRECT_URL="Direct接続文字列" npx prisma db seed
 ```
+
+### Prisma migrate resolve（P3009復旧）
+本番DBで `P3009` が出た場合は手動で復旧します（自動では実行しません）。
+移行SQLが適用済みかどうかを確認し、該当の migration を `--applied` か `--rolled-back` で解決してください。
+```bash
+npx prisma migrate resolve --rolled-back 20260202001000_seed_xrule_tenant
+# もしくは
+npx prisma migrate resolve --applied 20260202001000_seed_xrule_tenant
+```
+復旧後に `npx prisma migrate deploy` を実行します。
+※ Prisma 5.19.x では `prisma migrate status --json` が使えないため、build ではテキスト出力を判定します。
+
+### セキュリティ注意
+- `.env` などの秘密情報は **絶対にコミットしない** でください。
+- もし過去にコミットしてしまった場合は、DBパスワードやトークンを **必ずローテーション** してください。
 
 ## 認証フロー
 - `/login` からログイン
@@ -76,9 +97,11 @@ DATABASE_URL="本番の接続文字列" npx prisma db seed
 2. VercelでImportし、環境変数を設定
 3. Postgres/Blob/Upstash RedisをVercel Marketplace経由で作成
 4. `vercel.json` に定義したCron Jobsが有効化される
-5. `Project Settings -> Environment Variables` に `DATABASE_URL` と `FILE_STORAGE_PROVIDER` を必ず登録
+5. `Project Settings -> Environment Variables` に `DATABASE_URL` と `DIRECT_URL` と `FILE_STORAGE_PROVIDER` を必ず登録
 6. `FILE_STORAGE_PROVIDER=blob` の場合は `BLOB_READ_WRITE_TOKEN` を登録
 7. `FILE_STORAGE_PROVIDER=gdrive` の場合は `GOOGLE_DRIVE_FOLDER_ID` / `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64` を登録
+8. Build Command を `npm run vercel-build` に設定し、migrate deploy を自動実行する
+9. 単一テナント運用の場合、`XRULE_TENANT_ID` を設定して tenant 解決を確実にする（任意）
 
 ## ユーザーが準備すること（Codex以外で実施）
 1. **GitHub**
@@ -90,7 +113,8 @@ DATABASE_URL="本番の接続文字列" npx prisma db seed
      - Vercel Blob
      - Upstash Redis（KV用途）
    - 環境変数（Preview/Production 両方に同じ値を設定）
-     - `DATABASE_URL`（Supabase integration または Vercel Postgres の接続文字列）
+     - `DATABASE_URL`（Supabase Pooler / pgbouncer 接続文字列）
+     - `DIRECT_URL`（Supabase non-pooling / direct 接続文字列）
      - `FILE_STORAGE_PROVIDER`（`blob` or `gdrive`）
      - `BLOB_READ_WRITE_TOKEN`（`FILE_STORAGE_PROVIDER=blob` の場合）
      - `GOOGLE_SHEETS_ID`
@@ -189,6 +213,15 @@ Hobbyプランは1日1回までの制限があるため日次で実行します�
 - 開発環境: `npx prisma migrate dev`
 - 本番環境: `npx prisma migrate deploy`
 - 確認のみ: `npx prisma db push`
+
+### Vercel用の接続設定
+- `DATABASE_URL` は Pooler (pgbouncer) を使う（ランタイム用）
+- `DIRECT_URL` は non-pooling (direct / 5432) を使う（migrate用）
+- `DIRECT_URL` を設定できない場合は `DATABASE_URL` と同じ値を設定する（ビルドスクリプトでフォールバック）
+- `DIRECT_URL` が空文字の場合もフォールバック対象。ただし `DATABASE_URL` は必須で、空ならビルドで明示的に失敗します
+- `DATABASE_URL` が未設定の場合は `POSTGRES_PRISMA_URL` / `POSTGRES_URL` / `POSTGRES_URL_NON_POOLING` の順で自動補完されます
+- `DIRECT_URL` が未設定の場合は `POSTGRES_URL_NON_POOLING` / `POSTGRES_PRISMA_URL` / `DATABASE_URL` の順で自動補完されます
+- ランタイムでも `lib/db.ts` が同じ優先順位で `DATABASE_URL` / `DIRECT_URL` を補完します
 
 ## DynamoDBへ戻す場合のチェックリスト（将来用）
 - PK/SK設計（`TENANT#{tenantId}` / `USER#{userId}`）

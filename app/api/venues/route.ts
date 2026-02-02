@@ -6,33 +6,37 @@ export const runtime = 'nodejs';
 
 export async function GET(request: Request) {
   const prisma = getPrisma();
-  const { user, response } = await requireSession(request);
-  if (response) return response;
-  if (!user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
-  const url = new URL(request.url);
-  const tenantId = user.role === 'SUPER_ADMIN' ? url.searchParams.get('tenantId') ?? undefined : user.tenantId ?? undefined;
+  try {
+    const { user, response } = await requireSession(request);
+    if (response) return response;
+    if (!user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+    const url = new URL(request.url);
+    const tenantId = user.role === 'SUPER_ADMIN' ? url.searchParams.get('tenantId') ?? undefined : user.tenantId ?? undefined;
 
-  if (user.role === 'AGENT' && !user.agencyId) {
-    return NextResponse.json([]);
-  }
+    if (user.role === 'AGENT' && !user.agencyId) {
+      return NextResponse.json([]);
+    }
 
-  let venueIds: string[] | undefined;
-  if (user.role === 'AGENT' && user.agencyId) {
-    const events = await prisma.event.findMany({
-      where: tenantId ? { tenantId, agencyId: user.agencyId } : { agencyId: user.agencyId },
-      select: { venueId: true },
+    let venueIds: string[] | undefined;
+    if (user.role === 'AGENT' && user.agencyId) {
+      const events = await prisma.event.findMany({
+        where: tenantId ? { tenantId, agencyId: user.agencyId } : { agencyId: user.agencyId },
+        select: { venueId: true },
+      });
+      venueIds = Array.from(new Set(events.map((event) => event.venueId)));
+    }
+
+    const venues = await prisma.venue.findMany({
+      where: {
+        ...(tenantId ? { tenantId } : {}),
+        ...(venueIds ? { id: { in: venueIds } } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
     });
-    venueIds = Array.from(new Set(events.map((event) => event.venueId)));
+    return NextResponse.json(venues);
+  } catch (error) {
+    return errorResponse(error);
   }
-
-  const venues = await prisma.venue.findMany({
-    where: {
-      ...(tenantId ? { tenantId } : {}),
-      ...(venueIds ? { id: { in: venueIds } } : {}),
-    },
-    orderBy: { createdAt: 'desc' },
-  });
-  return NextResponse.json(venues);
 }
 
 export async function POST(request: Request) {
