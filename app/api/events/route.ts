@@ -27,18 +27,29 @@ export async function GET(request: Request) {
     if (response) return response;
     if (!user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
 
-    const url = new URL(request.url);
-    const tenantId = user.role === 'SUPER_ADMIN' ? url.searchParams.get('tenantId') ?? undefined : user.tenantId ?? undefined;
-
     if (user.role === 'AGENT' && !user.agencyId) {
       return NextResponse.json([]);
     }
 
+    const where: Record<string, unknown> = {};
+
+    // SUPER_ADMIN: tenantId query があれば絞り込み
+    // ADMIN: 自テナントのみ
+    // AGENT: 自代理店のみ
+    if (user.role === 'SUPER_ADMIN') {
+      const url = new URL(request.url);
+      const tenantId = url.searchParams.get('tenantId');
+      if (tenantId) where.tenantId = tenantId;
+    } else if (user.tenantId) {
+      where.tenantId = user.tenantId;
+    }
+
+    if (user.role === 'AGENT') {
+      where.agencyId = user.agencyId ?? undefined;
+    }
+
     const events = await prisma.event.findMany({
-      where: {
-        ...(tenantId ? { tenantId } : {}),
-        ...(user.role === 'AGENT' ? { agencyId: user.agencyId ?? undefined } : {}),
-      },
+      where,
       include: { agency: true, venue: true, intermediary: true },
       orderBy: { startDate: 'desc' },
     });
@@ -78,33 +89,9 @@ export async function POST(request: Request) {
 
     const payload = await request.json();
 
-    if (!payload.agencyId || !payload.venueId) {
+    if (!payload?.agencyId || !payload?.venueId) {
       return NextResponse.json({ message: 'Agency and venue are required' }, { status: 400 });
     }
-
-    // まず agency/venue を取得（tenant 推定の材料にする）
-    const [agency, venue] = await Promise.all([
-      prisma.agency.findUnique({ where: { id: payload.agencyId }, select: { id: true, name: true, tenantId: true } }),
-      prisma.venue.findUnique({ where: { id: payload.venueId }, select: { id: true, name: true, tenantId: true, cashHandling: true } }),
-    ]);
-
-    if (!agency) return NextResponse.json({ message: 'Invalid agency' }, { status: 400 });
-    if (!venue) return NextResponse.json({ message: 'Invalid venue' }, { status: 400 });
-
-    // tenantId を確定（SUPER_ADMIN の user.tenantId が空でもOK）
-    let tenantId: string | null =
-      user.role === 'SUPER_ADMIN' ? (payload.tenantId ?? user.tenantId ?? null) : (user.tenantId ?? null);
-
-    if (!tenantId) {
-      // 推定：agency と venue が同一 tenant である前提
-      tenantId = agency.tenantId ?? venue.tenantId ?? null;
-    }
-
-    if (!tenantId) return NextResponse.json({ message: 'Tenant required' }, { status: 400 });
-
-    // tenant 整合性チェック
-    if (agency.tenantId !== tenantId) return NextResponse.json({ message: 'Invalid agency' }, { status: 400 });
-    if (venue.tenantId !== tenantId) return NextResponse.json({ message: 'Invalid venue' }, { status: 400 });
 
     const startDate = new Date(payload.startDate);
     const endDate = new Date(payload.endDate);
@@ -112,10 +99,36 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: 'Invalid dates' }, { status: 400 });
     }
 
+    const [agency, venue] = await Promise.all([
+      prisma.agency.findUnique({ where: { id: payload.agencyId } }),
+      prisma.venue.findUnique({ where: { id: payload.venueId } }),
+    ]);
+
+    if (!agency) return NextResponse.json({ message: 'Invalid agency' }, { status: 400 });
+    if (!venue) return NextResponse.json({ message: 'Invalid venue' }, { status: 400 });
+
+    // tenantId は agency/venue から決める（Tenant required を出さない）
+    if (!agency.tenantId || !venue.tenantId) {
+      return NextResponse.json({ message: 'Tenant required' }, { status: 400 });
+    }
+
+    // agency と venue のテナントが一致していること（事故防止）
+    if (agency.tenantId !== venue.tenantId) {
+      return NextResponse.json({ message: 'Agency/Venue tenant mismatch' }, { status: 400 });
+    }
+
+    const tenantId = agency.tenantId;
+
+    // ADMIN は自テナントのみ
+    if (user.role !== 'SUPER_ADMIN' && user.tenantId !== tenantId) {
+      return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    }
+
     let intermediaryId: string | null = payload.intermediaryId ?? null;
     if (intermediaryId === '') intermediaryId = null;
+
     if (intermediaryId) {
-      const intermediary = await prisma.intermediary.findUnique({ where: { id: intermediaryId }, select: { tenantId: true } });
+      const intermediary = await prisma.intermediary.findUnique({ where: { id: intermediaryId } });
       if (!intermediary || intermediary.tenantId !== tenantId) {
         return NextResponse.json({ message: 'Invalid intermediary' }, { status: 400 });
       }
