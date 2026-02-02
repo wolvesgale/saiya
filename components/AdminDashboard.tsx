@@ -33,7 +33,13 @@ type Agency = {
 
 type User = { id: string; email: string; role: string; isActive: boolean };
 
-type Venue = { id: string; name: string; address: string | null; cashHandling: string | null; attachmentUrl: string | null };
+type Venue = {
+  id: string;
+  name: string;
+  address: string | null;
+  cashHandling: string | null;
+  attachmentUrl: string | null;
+};
 
 type Intermediary = { id: string; name: string; reportFormUrl: string | null };
 
@@ -57,10 +63,26 @@ type SummaryResponse = {
   overallAverage: number;
 };
 
+type UiMessage = { kind: 'success' | 'error'; text: string };
+
 const cashHandlingOptions = [
   { value: 'HOLD', label: '預かり' },
   { value: 'TAKE_HOME', label: '持ち帰り' },
 ];
+
+function MessageBox({ message }: { message: UiMessage | null }) {
+  if (!message) return null;
+  const cls =
+    message.kind === 'success'
+      ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-200'
+      : 'bg-rose-500/10 border border-rose-500/30 text-rose-200';
+
+  return (
+    <div className={`${cls} px-4 py-2 rounded whitespace-pre-wrap text-sm`}>
+      {message.text}
+    </div>
+  );
+}
 
 export default function AdminDashboard() {
   const [agencies, setAgencies] = useState<Agency[]>([]);
@@ -69,8 +91,14 @@ export default function AdminDashboard() {
   const [events, setEvents] = useState<Event[]>([]);
   const [intermediaries, setIntermediaries] = useState<Intermediary[]>([]);
   const [summary, setSummary] = useState<SummaryResponse | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
   const [currentMonth, setCurrentMonth] = useState(new Date());
+
+  // セクション別メッセージ
+  const [agencyMsg, setAgencyMsg] = useState<UiMessage | null>(null);
+  const [userMsg, setUserMsg] = useState<UiMessage | null>(null);
+  const [intermediaryMsg, setIntermediaryMsg] = useState<UiMessage | null>(null);
+  const [venueMsg, setVenueMsg] = useState<UiMessage | null>(null);
+  const [eventMsg, setEventMsg] = useState<UiMessage | null>(null);
 
   const timeOptions = useMemo(() => {
     const options: string[] = [];
@@ -90,6 +118,7 @@ export default function AdminDashboard() {
       fetch('/api/events'),
       fetch('/api/intermediaries'),
     ]);
+
     if (agenciesRes.ok) setAgencies(await agenciesRes.json());
     if (usersRes.ok) setUsers(await usersRes.json());
     if (venuesRes.ok) setVenues(await venuesRes.json());
@@ -116,6 +145,8 @@ export default function AdminDashboard() {
 
   const handleCreateAgency = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setAgencyMsg(null);
+
     const formData = new FormData(event.currentTarget);
     const response = await fetch('/api/agencies', {
       method: 'POST',
@@ -126,37 +157,48 @@ export default function AdminDashboard() {
         password: formData.get('password'),
       }),
     });
+
     if (response.ok) {
-      setMessage('代理店を作成しました。');
+      setAgencyMsg({ kind: 'success', text: '代理店を作成しました。' });
       event.currentTarget.reset();
       refresh();
       return;
     }
+
     const payload = await response.json().catch(() => null);
     if (payload?.error === 'validation') {
       const details = Array.isArray(payload.details)
         ? payload.details.map((detail: { field: string; message: string }) => `${detail.field}: ${detail.message}`)
         : ['入力内容を確認してください。'];
-      setMessage(`代理店の作成に失敗しました。\n${details.join('\n')}`);
+      setAgencyMsg({ kind: 'error', text: `代理店の作成に失敗しました。\n${details.join('\n')}` });
       return;
     }
-    setMessage(payload?.message ?? '代理店の作成に失敗しました。');
+    setAgencyMsg({ kind: 'error', text: payload?.message ?? '代理店の作成に失敗しました。' });
   };
 
   const handleUpdateAgency = async (agencyId: string, payload: { email: string | null; shopName: string | null; password?: string }) => {
+    setAgencyMsg(null);
+
     const response = await fetch(`/api/agencies/${agencyId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
+
     if (response.ok) {
-      setMessage('代理店情報を更新しました。');
+      setAgencyMsg({ kind: 'success', text: '代理店情報を更新しました。' });
       refresh();
+      return;
     }
+
+    const data = await response.json().catch(() => null);
+    setAgencyMsg({ kind: 'error', text: data?.message ?? '代理店情報の更新に失敗しました。' });
   };
 
   const handleCreateUser = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setUserMsg(null);
+
     const formData = new FormData(event.currentTarget);
     const response = await fetch('/api/users', {
       method: 'POST',
@@ -167,17 +209,63 @@ export default function AdminDashboard() {
         agencyId: formData.get('agencyId') || undefined,
       }),
     });
+
     if (response.ok) {
       const payload = await response.json();
-      setMessage(`ユーザーを作成しました。仮パスワード: ${payload.tempPassword}`);
+      setUserMsg({ kind: 'success', text: `ユーザーを作成しました。仮パスワード: ${payload.tempPassword}` });
       event.currentTarget.reset();
       refresh();
+      return;
+    }
+
+    const data = await response.json().catch(() => null);
+    setUserMsg({ kind: 'error', text: data?.message ?? 'ユーザーの作成に失敗しました。' });
+  };
+
+  const handleUploadVenueAttachment = async (venueId: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('entityType', 'VENUE');
+    formData.append('entityId', venueId);
+
+    const response = await fetch('/api/attachments/upload', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => null);
+      throw new Error(data?.message ?? '添付ファイルのアップロードに失敗しました。');
+    }
+
+    const payload = await response.json();
+    const attachmentUrl = payload.blobUrl ?? payload.driveWebViewLink ?? null;
+
+    if (attachmentUrl) {
+      const patch = await fetch(`/api/venues/${venueId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ attachmentUrl }),
+      });
+
+      if (!patch.ok) {
+        const data = await patch.json().catch(() => null);
+        throw new Error(data?.message ?? '添付URLの反映に失敗しました。');
+      }
     }
   };
 
   const handleCreateVenue = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setVenueMsg(null);
+
     const formData = new FormData(event.currentTarget);
+
+    const file = formData.get('attachmentFile');
+    const attachmentUrlRaw = formData.get('attachmentUrl')?.toString() ?? '';
+    const attachmentUrl = attachmentUrlRaw.trim() ? attachmentUrlRaw.trim() : null;
+
+    // まず会場を作成（ファイルがある場合、attachmentUrlは後から付ける）
     const response = await fetch('/api/venues', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -185,7 +273,7 @@ export default function AdminDashboard() {
         name: formData.get('venueName'),
         address: formData.get('venueAddress'),
         note: formData.get('note'),
-        attachmentUrl: formData.get('attachmentUrl'),
+        attachmentUrl: file instanceof File && file.size > 0 ? null : attachmentUrl,
         cashHandling: formData.get('cashHandling') || null,
         notes: formData.get('notes'),
         hours: formData.get('hours'),
@@ -194,41 +282,53 @@ export default function AdminDashboard() {
         loadOutTime: formData.get('loadOutTime'),
       }),
     });
-    if (response.ok) {
-      setMessage('会場を作成しました。');
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => null);
+      setVenueMsg({ kind: 'error', text: data?.message ?? '会場の作成に失敗しました。' });
+      return;
+    }
+
+    const createdVenue: Venue = await response.json().catch(() => null);
+    if (!createdVenue?.id) {
+      setVenueMsg({ kind: 'error', text: '会場は作成されましたが、レスポンスが不正です（venue id が取れません）。' });
+      refresh();
+      return;
+    }
+
+    // ファイル添付がある場合はアップロード→URL反映
+    try {
+      if (file instanceof File && file.size > 0) {
+        await handleUploadVenueAttachment(createdVenue.id, file);
+      }
+      setVenueMsg({ kind: 'success', text: '会場を作成しました。' + (file instanceof File && file.size > 0 ? '（添付も反映済み）' : '') });
       event.currentTarget.reset();
+      refresh();
+    } catch (e: any) {
+      // 会場作成は成功しているので、添付だけ失敗
+      setVenueMsg({
+        kind: 'error',
+        text: `会場は作成できましたが、添付の反映で失敗しました。\n${e?.message ?? '不明なエラー'}`,
+      });
       refresh();
     }
   };
 
-  const handleUploadVenueAttachment = async (venueId: string, file: File) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('entityType', 'VENUE');
-    formData.append('entityId', venueId);
-    const response = await fetch('/api/attachments/upload', {
-      method: 'POST',
-      body: formData,
-    });
-    if (!response.ok) {
-      setMessage('添付ファイルのアップロードに失敗しました。');
-      return;
+  const handleUploadVenueAttachmentFromList = async (venueId: string, file: File) => {
+    setVenueMsg(null);
+    try {
+      await handleUploadVenueAttachment(venueId, file);
+      setVenueMsg({ kind: 'success', text: '添付ファイルを更新しました。' });
+      refresh();
+    } catch (e: any) {
+      setVenueMsg({ kind: 'error', text: e?.message ?? '添付ファイルの更新に失敗しました。' });
     }
-    const payload = await response.json();
-    const attachmentUrl = payload.blobUrl ?? payload.driveWebViewLink ?? null;
-    if (attachmentUrl) {
-      await fetch(`/api/venues/${venueId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ attachmentUrl }),
-      });
-    }
-    setMessage('添付ファイルを更新しました。');
-    refresh();
   };
 
   const handleCreateEvent = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setEventMsg(null);
+
     const formData = new FormData(event.currentTarget);
     const response = await fetch('/api/events', {
       method: 'POST',
@@ -243,15 +343,22 @@ export default function AdminDashboard() {
         reportDeadline: formData.get('reportDeadline') || null,
       }),
     });
+
     if (response.ok) {
-      setMessage('イベントを作成しました。');
+      setEventMsg({ kind: 'success', text: 'イベントを作成しました。' });
       event.currentTarget.reset();
       refresh();
+      return;
     }
+
+    const data = await response.json().catch(() => null);
+    setEventMsg({ kind: 'error', text: data?.message ?? 'イベントの作成に失敗しました。' });
   };
 
   const handleCreateIntermediary = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setIntermediaryMsg(null);
+
     const formData = new FormData(event.currentTarget);
     const response = await fetch('/api/intermediaries', {
       method: 'POST',
@@ -261,31 +368,49 @@ export default function AdminDashboard() {
         reportFormUrl: formData.get('reportFormUrl') || null,
       }),
     });
+
     if (response.ok) {
-      setMessage('仲介業者を作成しました。');
+      setIntermediaryMsg({ kind: 'success', text: '仲介業者を作成しました。' });
       event.currentTarget.reset();
       refresh();
+      return;
     }
+
+    const data = await response.json().catch(() => null);
+    setIntermediaryMsg({ kind: 'error', text: data?.message ?? '仲介業者の作成に失敗しました。' });
   };
 
   const handleUpdateIntermediary = async (intermediaryId: string, payload: { name: string; reportFormUrl: string | null }) => {
+    setIntermediaryMsg(null);
+
     const response = await fetch(`/api/intermediaries/${intermediaryId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
+
     if (response.ok) {
-      setMessage('仲介業者を更新しました。');
+      setIntermediaryMsg({ kind: 'success', text: '仲介業者を更新しました。' });
       refresh();
+      return;
     }
+
+    const data = await response.json().catch(() => null);
+    setIntermediaryMsg({ kind: 'error', text: data?.message ?? '仲介業者の更新に失敗しました。' });
   };
 
   const handleDeleteIntermediary = async (intermediaryId: string) => {
+    setIntermediaryMsg(null);
+
     const response = await fetch(`/api/intermediaries/${intermediaryId}`, { method: 'DELETE' });
     if (response.ok) {
-      setMessage('仲介業者を削除しました。');
+      setIntermediaryMsg({ kind: 'success', text: '仲介業者を削除しました。' });
       refresh();
+      return;
     }
+
+    const data = await response.json().catch(() => null);
+    setIntermediaryMsg({ kind: 'error', text: data?.message ?? '仲介業者の削除に失敗しました。' });
   };
 
   const monthLabel = `${currentMonth.getFullYear()}年${currentMonth.getMonth() + 1}月`;
@@ -309,15 +434,11 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-10">
-      {message ? (
-        <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-200 px-4 py-2 rounded">
-          {message}
-        </div>
-      ) : null}
       <section className="grid lg:grid-cols-2 gap-6">
         <div className="bg-slate-900/70 border border-slate-800 p-6 rounded-lg">
-          <h2 className="text-lg font-semibold mb-4">代理店管理</h2>
-          <form onSubmit={handleCreateAgency} className="space-y-3">
+          <h2 className="text-lg font-semibold mb-3">代理店管理</h2>
+          <MessageBox message={agencyMsg} />
+          <form onSubmit={handleCreateAgency} className="space-y-3 mt-3">
             <div>
               <label htmlFor="agency-name">代理店名</label>
               <input id="agency-name" name="name" required />
@@ -363,9 +484,11 @@ export default function AdminDashboard() {
             ))}
           </ul>
         </div>
+
         <div className="bg-slate-900/70 border border-slate-800 p-6 rounded-lg">
-          <h2 className="text-lg font-semibold mb-4">ユーザー管理</h2>
-          <form onSubmit={handleCreateUser} className="space-y-3">
+          <h2 className="text-lg font-semibold mb-3">ユーザー管理</h2>
+          <MessageBox message={userMsg} />
+          <form onSubmit={handleCreateUser} className="space-y-3 mt-3">
             <div>
               <label htmlFor="user-email">メール</label>
               <input id="user-email" name="email" type="email" required />
@@ -395,8 +518,9 @@ export default function AdminDashboard() {
 
       <section className="grid lg:grid-cols-2 gap-6">
         <div className="bg-slate-900/70 border border-slate-800 p-6 rounded-lg">
-          <h2 className="text-lg font-semibold mb-4">仲介業者管理</h2>
-          <form onSubmit={handleCreateIntermediary} className="space-y-3">
+          <h2 className="text-lg font-semibold mb-3">仲介業者管理</h2>
+          <MessageBox message={intermediaryMsg} />
+          <form onSubmit={handleCreateIntermediary} className="space-y-3 mt-3">
             <div>
               <label htmlFor="intermediary-name">業者名</label>
               <input id="intermediary-name" name="intermediaryName" required />
@@ -426,20 +550,12 @@ export default function AdminDashboard() {
                   className="grid gap-2"
                 >
                   <input name="name" defaultValue={intermediary.name} />
-                  <input
-                    name="reportFormUrl"
-                    defaultValue={intermediary.reportFormUrl ?? ''}
-                    placeholder="https://"
-                  />
+                  <input name="reportFormUrl" defaultValue={intermediary.reportFormUrl ?? ''} placeholder="https://" />
                   <div className="flex gap-2">
                     <button className="bg-slate-700 text-white" type="submit">
                       更新
                     </button>
-                    <button
-                      className="bg-rose-500/80 text-white"
-                      type="button"
-                      onClick={() => handleDeleteIntermediary(intermediary.id)}
-                    >
+                    <button className="bg-rose-500/80 text-white" type="button" onClick={() => handleDeleteIntermediary(intermediary.id)}>
                       削除
                     </button>
                   </div>
@@ -448,9 +564,12 @@ export default function AdminDashboard() {
             ))}
           </ul>
         </div>
+
         <div className="bg-slate-900/70 border border-slate-800 p-6 rounded-lg">
-          <h2 className="text-lg font-semibold mb-4">会場管理</h2>
-          <form onSubmit={handleCreateVenue} className="space-y-3">
+          <h2 className="text-lg font-semibold mb-3">会場管理</h2>
+          <MessageBox message={venueMsg} />
+
+          <form onSubmit={handleCreateVenue} className="space-y-3 mt-3">
             <div>
               <label htmlFor="venue-name">会場名</label>
               <input id="venue-name" name="venueName" required />
@@ -463,10 +582,21 @@ export default function AdminDashboard() {
               <label htmlFor="venue-note">会場メモ</label>
               <textarea id="venue-note" name="note" rows={2} />
             </div>
+
+            {/* 直接アップロード優先（URLは保険で残す） */}
             <div>
-              <label htmlFor="venue-attachment">資料URL (任意)</label>
-              <input id="venue-attachment" name="attachmentUrl" placeholder="https://" />
+              <label htmlFor="venue-attachment-file">参考ファイル (PDF/画像など・任意)</label>
+              <input id="venue-attachment-file" name="attachmentFile" type="file" />
+              <div className="text-xs text-slate-500 mt-1">
+                ファイルを選んだ場合はアップロードして自動で反映します（URL欄は無視されます）。
+              </div>
             </div>
+
+            <div>
+              <label htmlFor="venue-attachment-url">資料URL (任意・保険)</label>
+              <input id="venue-attachment-url" name="attachmentUrl" placeholder="https://" />
+            </div>
+
             <div>
               <label htmlFor="venue-cash">売上金預かり</label>
               <select id="venue-cash" name="cashHandling">
@@ -500,12 +630,15 @@ export default function AdminDashboard() {
             </div>
             <button className="bg-indigo-500 text-white">作成</button>
           </form>
+
           <ul className="mt-4 space-y-3 text-sm text-slate-300">
             {venues.map((venue) => (
               <li key={venue.id} className="border border-slate-800 rounded p-3 space-y-2">
                 <div>
-                  {venue.name} ({venue.cashHandling === 'HOLD' ? '預かり' : venue.cashHandling === 'TAKE_HOME' ? '持ち帰り' : '未設定'})
+                  {venue.name} (
+                  {venue.cashHandling === 'HOLD' ? '預かり' : venue.cashHandling === 'TAKE_HOME' ? '持ち帰り' : '未設定'})
                 </div>
+
                 {venue.attachmentUrl ? (
                   <a className="text-xs text-indigo-300" href={venue.attachmentUrl} target="_blank" rel="noreferrer">
                     添付ファイルを開く
@@ -513,14 +646,17 @@ export default function AdminDashboard() {
                 ) : (
                   <div className="text-xs text-slate-500">添付ファイルなし</div>
                 )}
+
                 <form
                   onSubmit={(submitEvent) => {
                     submitEvent.preventDefault();
-                    const formData = new FormData(submitEvent.currentTarget);
-                    const file = formData.get('file');
-                    if (file instanceof File) {
-                      handleUploadVenueAttachment(venue.id, file);
+                    const fd = new FormData(submitEvent.currentTarget);
+                    const file = fd.get('file');
+                    if (file instanceof File && file.size > 0) {
+                      handleUploadVenueAttachmentFromList(venue.id, file);
                       submitEvent.currentTarget.reset();
+                    } else {
+                      setVenueMsg({ kind: 'error', text: 'ファイルが選択されていません。' });
                     }
                   }}
                   className="space-y-2"
@@ -538,8 +674,10 @@ export default function AdminDashboard() {
 
       <section className="grid lg:grid-cols-2 gap-6">
         <div className="bg-slate-900/70 border border-slate-800 p-6 rounded-lg">
-          <h2 className="text-lg font-semibold mb-4">スケジュール/イベント</h2>
-          <form onSubmit={handleCreateEvent} className="space-y-3">
+          <h2 className="text-lg font-semibold mb-3">スケジュール/イベント</h2>
+          <MessageBox message={eventMsg} />
+
+          <form onSubmit={handleCreateEvent} className="space-y-3 mt-3">
             <div>
               <label htmlFor="event-agency">代理店</label>
               <select id="event-agency" name="eventAgency" required>
@@ -551,6 +689,7 @@ export default function AdminDashboard() {
                 ))}
               </select>
             </div>
+
             <div>
               <label htmlFor="event-venue">会場</label>
               <select id="event-venue" name="eventVenue" required>
@@ -561,7 +700,11 @@ export default function AdminDashboard() {
                   </option>
                 ))}
               </select>
+              <div className="text-xs text-slate-500 mt-1">
+                ※ 会場が出ない場合、/api/venues が空 or 500 になっている可能性があります（下のチェックリスト参照）。
+              </div>
             </div>
+
             <div>
               <label htmlFor="event-start">開始日</label>
               <input id="event-start" name="startDate" type="date" required />
@@ -598,6 +741,7 @@ export default function AdminDashboard() {
             </div>
             <button className="bg-indigo-500 text-white">作成</button>
           </form>
+
           <ul className="mt-4 space-y-3 text-sm text-slate-300">
             {events.map((eventItem) => (
               <li key={eventItem.id} className="border border-slate-800 rounded p-3 space-y-1">
@@ -614,6 +758,7 @@ export default function AdminDashboard() {
             ))}
           </ul>
         </div>
+
         <div className="bg-slate-900/70 border border-slate-800 p-6 rounded-lg space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">イベントカレンダー</h2>
@@ -643,6 +788,7 @@ export default function AdminDashboard() {
               </button>
             </div>
           </div>
+
           <div className="grid grid-cols-7 text-xs text-slate-400">
             {['日', '月', '火', '水', '木', '金', '土'].map((label) => (
               <div key={label} className="text-center py-1">
@@ -655,6 +801,7 @@ export default function AdminDashboard() {
               </div>
             ))}
           </div>
+
           <div className="space-y-2">
             {monthlyEvents.map((eventItem) => {
               const start = new Date(eventItem.startDate);
@@ -662,11 +809,7 @@ export default function AdminDashboard() {
               const startIndex = Math.max(1, start < monthStart ? 1 : start.getDate());
               const endIndex = Math.min(daysInMonth, end.getDate());
               return (
-                <div
-                  key={eventItem.id}
-                  className="grid items-center"
-                  style={{ gridTemplateColumns: `repeat(${daysInMonth}, minmax(0, 1fr))` }}
-                >
+                <div key={eventItem.id} className="grid items-center" style={{ gridTemplateColumns: `repeat(${daysInMonth}, minmax(0, 1fr))` }}>
                   <a
                     href={`/admin/events/${eventItem.id}`}
                     className={`${getAgencyColor(eventItem.agencyId)} text-xs text-white rounded px-2 py-1 text-center truncate`}
@@ -683,12 +826,9 @@ export default function AdminDashboard() {
 
       <section className="bg-slate-900/70 border border-slate-800 p-6 rounded-lg">
         <h2 className="text-lg font-semibold mb-4">売上集計</h2>
-        <div className="text-sm text-slate-400 mb-2">
-          平均売上は「当月の売上合計 / 売上入力件数」で算出しています。
-        </div>
-        <div className="text-sm text-slate-300 mb-4">
-          総合平均売上: {summary?.overallAverage?.toLocaleString() ?? '0'}
-        </div>
+        <div className="text-sm text-slate-400 mb-2">平均売上は「当月の売上合計 / 売上入力件数」で算出しています。</div>
+        <div className="text-sm text-slate-300 mb-4">総合平均売上: {summary?.overallAverage?.toLocaleString() ?? '0'}</div>
+
         <div className="flex items-center gap-2 mb-4">
           <button
             className="bg-slate-800 text-slate-200"
@@ -714,6 +854,7 @@ export default function AdminDashboard() {
             次月
           </button>
         </div>
+
         <div className="overflow-auto">
           <table className="w-full text-sm text-slate-300">
             <thead>
