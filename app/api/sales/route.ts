@@ -72,12 +72,19 @@ export async function POST(request: Request) {
     const roleResponse = requireRoles(user.role, ['SUPER_ADMIN', 'ADMIN', 'AGENT']);
     if (roleResponse) return roleResponse;
 
-    // ★ 監査カラム：作成者ID（実体が id / userId どちらでも拾う）
-    const createdByUserId =
-      (user as unknown as { id?: string; userId?: string }).id ??
-      (user as unknown as { id?: string; userId?: string }).userId;
+    // ========= 2-2: “本番がこのrouteを動かしている”証明ログ =========
+    // ※値を変えてデプロイすれば「反映されてる/されてない」が一発で分かる
+    console.log('[sales POST] route-version:', '2026-02-02-b');
+    console.log('[sales POST] user keys:', Object.keys(user as any));
+    console.log('[sales POST] user.id:', (user as any)?.id);
+    // ============================================================
 
+    // ★ 監査カラム：作成者ID（SessionUser.id に固定）
+    const createdByUserId = user.id;
+
+    // 理屈上ここには来ない想定だが、DB NOT NULL のため保険
     if (!createdByUserId) {
+      console.error('[sales POST] missing user.id', { keys: Object.keys(user as any) });
       return NextResponse.json(
         { message: 'Session user id missing (createdByUserId required)' },
         { status: 500 },
