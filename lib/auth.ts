@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import { cookies } from 'next/headers';
 import { getPrisma } from '@/lib/db';
 
-// ===== パスワード（PBKDF2） =====
+// ===== パスワード =====
 const ITERATIONS = Number(process.env.PASSWORD_ITERATIONS ?? 100000);
 const KEYLEN = 64;
 const DIGEST = 'sha512';
@@ -14,37 +14,20 @@ export async function hashPassword(password: string) {
   const hash = crypto
     .pbkdf2Sync(password + PEPPER, salt, ITERATIONS, KEYLEN, DIGEST)
     .toString('hex');
-  // iterations:salt:hash
   return `${ITERATIONS}:${salt}:${hash}`;
 }
 
 export async function verifyPassword(password: string, stored: string) {
   try {
-    // PBKDF2形式: "iter:salt:hash"
-    const parts = stored.split(':');
-    if (parts.length === 3 && /^\d+$/.test(parts[0])) {
-      const [iterStr, salt, hash] = parts;
-      const iterations = Number(iterStr);
-      if (!iterations || !salt || !hash) return false;
+    const [iterStr, salt, hash] = stored.split(':');
+    const iterations = Number(iterStr);
+    if (!iterations || !salt || !hash) return false;
 
-      const computed = crypto
-        .pbkdf2Sync(password + PEPPER, salt, iterations, KEYLEN, DIGEST)
-        .toString('hex');
+    const computed = crypto
+      .pbkdf2Sync(password + PEPPER, salt, iterations, KEYLEN, DIGEST)
+      .toString('hex');
 
-      return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(computed, 'hex'));
-    }
-
-    // もし既存が bcrypt の可能性がある場合に備えて（依存が無ければ無視）
-    if (stored.startsWith('$2')) {
-      try {
-        const bcrypt = await (0, eval)('import("bcryptjs")');
-        return await bcrypt.compare(password, stored);
-      } catch {
-        return false;
-      }
-    }
-
-    return false;
+    return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(computed, 'hex'));
   } catch {
     return false;
   }
@@ -124,26 +107,24 @@ export async function getSessionUserFromToken(token: string): Promise<SessionUse
   if (!exp || Number.isNaN(exp.getTime()) || exp.getTime() < Date.now()) return null;
 
   const principalType: PrincipalType = decoded.principalType === 'AGENCY' ? 'AGENCY' : 'USER';
-  const role = (decoded.role ?? '').toString();
-  const tenantId = decoded.tenantId ? decoded.tenantId.toString() : null;
-  const agencyId = decoded.agencyId ? decoded.agencyId.toString() : null;
   const id = (decoded.sub ?? '').toString();
-  const email = (decoded.email ?? '').toString();
-
+  const role = (decoded.role ?? '').toString();
   if (!id || !role) return null;
 
-  // 最低限DB存在チェック（必要なければここは緩めてもOK）
   const prisma = getPrisma();
 
   if (principalType === 'AGENCY') {
     const agency = await prisma.agency.findUnique({ where: { id } });
-    if (!agency || !agency.isActive) return null;
-    if (!agency.email) return null;
+    if (!agency) return null;
+
+    // agency.email が nullable でも、ここでは必須扱いにする（nullなら無効）
+    const email = (agency.email ?? '').toString();
+    if (!email) return null;
 
     return {
       principalType: 'AGENCY',
       id: agency.id,
-      email: agency.email,
+      email,
       role: 'AGENT',
       tenantId: agency.tenantId ?? null,
       agencyId: agency.id,
@@ -152,18 +133,18 @@ export async function getSessionUserFromToken(token: string): Promise<SessionUse
     };
   }
 
-  const userRow = await prisma.user.findUnique({ where: { id } });
-  if (!userRow || !userRow.isActive) return null;
+  const user = await prisma.user.findUnique({ where: { id } });
+  if (!user || !user.isActive) return null;
 
   return {
     principalType: 'USER',
-    id: userRow.id,
-    email: userRow.email,
-    role: userRow.role,
-    tenantId: userRow.tenantId ?? null,
-    agencyId: userRow.agencyId ?? null,
-    mustChangePassword: userRow.mustChangePassword ?? false,
-    isActive: userRow.isActive ?? true,
+    id: user.id,
+    email: user.email,
+    role: user.role,
+    tenantId: user.tenantId ?? null,
+    agencyId: user.agencyId ?? null,
+    mustChangePassword: user.mustChangePassword ?? false,
+    isActive: user.isActive ?? true,
   };
 }
 
@@ -178,7 +159,7 @@ function getCookieValue(cookieHeader: string | null, name: string) {
   return null;
 }
 
-// ✅ 互換: 既存の change-password 等が import しても落ちない用
+// 互換用（既存の change-password 等が import しても落ちない）
 export async function getSessionUser(request: Request) {
   const token = getCookieValue(request.headers.get('cookie'), SESSION_COOKIE);
   if (!token) return null;
