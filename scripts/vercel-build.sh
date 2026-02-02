@@ -84,7 +84,7 @@ fi
 echo "Prisma env prepared (values hidden). DATABASE_URL source=${database_source}, DIRECT_URL source=${direct_source}."
 
 echo "Checking for failed migrations..."
-node -e "const { execSync } = require('child_process');\ntry {\n  const output = execSync('npx prisma migrate status --schema prisma/schema.prisma --json', { stdio: ['ignore', 'pipe', 'pipe'] }).toString();\n  const data = JSON.parse(output);\n  if (data.hasFailedMigrations) {\n    console.error('ERROR: Failed migrations detected in the target database.');\n    console.error('Resolve before deploy:');\n    console.error('  npx prisma migrate resolve --applied \"20260202001000_seed_xrule_tenant\"');\n    console.error('  npx prisma migrate deploy');\n    process.exit(1);\n  }\n} catch (error) {\n  console.error('ERROR: Unable to check migration status.');\n  console.error(error?.message || error);\n  process.exit(1);\n}\n"
+node -e "const { execSync } = require('child_process'); try { const out = execSync('npx prisma migrate status --schema prisma/schema.prisma --json', { stdio: ['ignore','pipe','pipe'] }).toString().trim(); const data = JSON.parse(out); if (data.hasFailedMigrations) { console.error('ERROR: Failed migrations detected in the target database.'); console.error('Resolve before deploy:'); console.error('  npx prisma migrate resolve --applied \"20260202001000_seed_xrule_tenant\"'); console.error('  npx prisma migrate deploy'); process.exit(1); } } catch (err) { console.error('ERROR: Unable to check migration status.'); console.error((err && err.message) || err); process.exit(1); }"
 
 npx prisma generate --schema prisma/schema.prisma
 npx prisma migrate deploy --schema prisma/schema.prisma
