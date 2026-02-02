@@ -1,3 +1,4 @@
+// app/api/auth/logout/route.ts
 import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
@@ -5,13 +6,19 @@ export const runtime = 'nodejs';
 export async function POST() {
   const res = NextResponse.json({ ok: true });
 
-  // セッションクッキーを確実に消す
-  res.cookies.delete('saiya_session');
+  // saiya_session を確実に無効化
+  res.cookies.set('saiya_session', '', {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'lax',
+    path: '/',
+    expires: new Date(0),
+  });
 
-  // 保険でよくある名前も削除
-  res.cookies.delete('token');
-  res.cookies.delete('session');
-  res.cookies.delete('auth');
+  // 念のため（過去互換）
+  res.cookies.set('token', '', { path: '/', expires: new Date(0) });
+  res.cookies.set('session', '', { path: '/', expires: new Date(0) });
+  res.cookies.set('auth', '', { path: '/', expires: new Date(0) });
 
   return res;
 }
