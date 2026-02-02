@@ -4,90 +4,7 @@ import { cookies } from 'next/headers';
 import { getPrisma } from '@/lib/db';
 import bcrypt from 'bcryptjs';
 
-// ===== Password hashing (PBKDF2) =====
-const DEFAULT_ITERATIONS = 100000;
-const ITERATIONS = Number(process.env.PASSWORD_ITERATIONS ?? DEFAULT_ITERATIONS);
-const KEYLEN = 64;
-const DIGEST = 'sha512';
-const PEPPER = process.env.PASSWORD_PEPPER ?? '';
-
-export async function hashPassword(password: string) {
-  const salt = crypto.randomBytes(16).toString('hex');
-  const iterations = Number.isFinite(ITERATIONS) && ITERATIONS > 0 ? ITERATIONS : DEFAULT_ITERATIONS;
-
-  const hash = crypto
-    .pbkdf2Sync(password + PEPPER, salt, iterations, KEYLEN, DIGEST)
-    .toString('hex');
-
-  // 互換性のため "iter:salt:hash" 形式
-  return `${iterations}:${salt}:${hash}`;
-}
-
-export async function verifyPassword(password: string, stored: string) {
-  try {
-    if (!stored) return false;
-
-    // ✅ bcrypt互換（既存DBが $2a$... のため必須）
-    if (stored.startsWith('$2a$') || stored.startsWith('$2b$') || stored.startsWith('$2y$')) {
-      // 1) pepper付きで作っていた可能性も潰す
-      if (PEPPER) {
-        const okPepper = await bcrypt.compare(password + PEPPER, stored);
-        if (okPepper) return true;
-      }
-      // 2) 通常bcrypt
-      return await bcrypt.compare(password, stored);
-    }
-
-    const parts = stored.split(':');
-    if (parts.length !== 3) return false;
-
-    let iterations = Number(parts[0]);
-    let salt = parts[1];
-    let hash = parts[2];
-
-    // salt:iter:hash 形式の可能性
-    if (!Number.isFinite(iterations) || iterations <= 0) {
-      const iter2 = Number(parts[1]);
-      const salt2 = parts[0];
-      const hash2 = parts[2];
-      if (!Number.isFinite(iter2) || iter2 <= 0) return false;
-      iterations = iter2;
-      salt = salt2;
-      hash = hash2;
-    }
-
-    // 1) まず現在のPEPPERで検証
-    const computed1 = pbkdf2Hex(password, salt, iterations, PEPPER);
-    if (safeEqualHex(hash, computed1)) return true;
-
-    // 2) PEPPER後付けで死んでるケース：pepper無しでも検証（後方互換）
-    if (PEPPER) {
-      const computed2 = pbkdf2Hex(password, salt, iterations, '');
-      if (safeEqualHex(hash, computed2)) return true;
-    }
-
-    return false;
-  } catch {
-    return false;
-  }
-}
-
-    if (!iterations || iterations <= 0 || !salt || !hash) return false;
-
-    const computed = crypto
-      .pbkdf2Sync(password + PEPPER, salt, iterations, KEYLEN, DIGEST)
-      .toString('hex');
-
-    // timingSafeEqual は長さ一致が必要
-    if (computed.length !== hash.length) return false;
-
-    return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(computed, 'hex'));
-  } catch {
-    return false;
-  }
-}
-
-// ===== Session =====
+// ===== Types =====
 export type PrincipalType = 'USER' | 'AGENCY';
 
 export type SessionUser = {
@@ -101,6 +18,84 @@ export type SessionUser = {
   principalType: PrincipalType;
 };
 
+// ===== Password hashing (PBKDF2 + bcrypt互換) =====
+const DEFAULT_ITERATIONS = 100000;
+const ITERATIONS = Number(process.env.PASSWORD_ITERATIONS ?? DEFAULT_ITERATIONS);
+const KEYLEN = 64;
+const DIGEST = 'sha512';
+const PEPPER = process.env.PASSWORD_PEPPER ?? '';
+
+function pbkdf2Hex(password: string, salt: string, iterations: number, pepper: string) {
+  return crypto.pbkdf2Sync(password + pepper, salt, iterations, KEYLEN, DIGEST).toString('hex');
+}
+
+function safeEqualHex(a: string, b: string) {
+  try {
+    return crypto.timingSafeEqual(Buffer.from(a, 'hex'), Buffer.from(b, 'hex'));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 返却形式：iterations:salt:hash
+ */
+export async function hashPassword(password: string) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const iterations = Number.isFinite(ITERATIONS) && ITERATIONS > 0 ? ITERATIONS : DEFAULT_ITERATIONS;
+  const hash = pbkdf2Hex(password, salt, iterations, PEPPER);
+  return `${iterations}:${salt}:${hash}`;
+}
+
+export async function verifyPassword(password: string, stored: string) {
+  try {
+    if (!stored) return false;
+
+    // ✅ bcrypt互換（DBに $2a$... が入っているケース）
+    if (stored.startsWith('$2a$') || stored.startsWith('$2b$') || stored.startsWith('$2y$')) {
+      // pepper付きでbcryptしていた可能性も潰す（後方互換）
+      if (PEPPER) {
+        const okPepper = await bcrypt.compare(password + PEPPER, stored);
+        if (okPepper) return true;
+      }
+      return await bcrypt.compare(password, stored);
+    }
+
+    // PBKDF2（iter:salt:hash or salt:iter:hash 互換）
+    const parts = stored.split(':');
+    if (parts.length !== 3) return false;
+
+    let iterations = Number(parts[0]);
+    let salt = parts[1];
+    let hash = parts[2];
+
+    // salt:iter:hash の可能性
+    if (!Number.isFinite(iterations) || iterations <= 0) {
+      const iter2 = Number(parts[1]);
+      const salt2 = parts[0];
+      const hash2 = parts[2];
+      if (!Number.isFinite(iter2) || iter2 <= 0) return false;
+      iterations = iter2;
+      salt = salt2;
+      hash = hash2;
+    }
+
+    const computed1 = pbkdf2Hex(password, salt, iterations, PEPPER);
+    if (safeEqualHex(hash, computed1)) return true;
+
+    // pepper後付け互換（pepper無しでも確認）
+    if (PEPPER) {
+      const computed2 = pbkdf2Hex(password, salt, iterations, '');
+      if (safeEqualHex(hash, computed2)) return true;
+    }
+
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+// ===== Session =====
 const SESSION_COOKIE = 'saiya_session';
 const SESSION_TTL_DAYS = Number(process.env.SESSION_TTL_DAYS ?? 14);
 const SESSION_SECRET = process.env.SESSION_SECRET ?? '';
@@ -182,7 +177,7 @@ export async function getSessionUserFromToken(token: string): Promise<SessionUse
     return {
       principalType: 'AGENCY',
       id: agency.id,
-      email: (agency.email ?? email).toString(), // nullable対策
+      email: String(agency.email ?? email), // nullable対策
       role: 'AGENT',
       tenantId: agency.tenantId ?? tenantId,
       agencyId: agency.id,
