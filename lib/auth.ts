@@ -2,7 +2,6 @@
 import crypto from 'crypto';
 import { cookies } from 'next/headers';
 import { getPrisma } from '@/lib/db';
-import type { SessionUser } from '@/lib/auth';
 
 // ===== パスワード =====
 const ITERATIONS = Number(process.env.PASSWORD_ITERATIONS ?? 100000);
@@ -15,9 +14,6 @@ export async function hashPassword(password: string) {
   const hash = crypto
     .pbkdf2Sync(password + PEPPER, salt, ITERATIONS, KEYLEN, DIGEST)
     .toString('hex');
-
-  // 既存の verifyPassword 実装に合わせている前提。
-  // もし DB 側が "salt:iter:hash" 形式ならそこへ合わせてください。
   return `${ITERATIONS}:${salt}:${hash}`;
 }
 
@@ -38,7 +34,7 @@ export async function verifyPassword(password: string, stored: string) {
 }
 
 // ===== セッション =====
-type PrincipalType = 'USER' | 'AGENCY';
+export type PrincipalType = 'USER' | 'AGENCY';
 
 export type SessionUser = {
   id: string;
@@ -50,8 +46,6 @@ export type SessionUser = {
   isActive: boolean;
   principalType: PrincipalType;
 };
-
-type CreateSessionInput = SessionUser;
 
 const SESSION_COOKIE = 'saiya_session';
 const SESSION_TTL_DAYS = Number(process.env.SESSION_TTL_DAYS ?? 14);
@@ -74,13 +68,15 @@ function verify(token: string) {
   assertSessionSecret();
   const [body, sig] = token.split('.');
   if (!body || !sig) return null;
+
   const expected = crypto.createHmac('sha256', SESSION_SECRET).update(body).digest('base64url');
   if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
+
   const json = Buffer.from(body, 'base64url').toString('utf-8');
   return JSON.parse(json) as any;
 }
 
-export async function createSession(input: CreateSessionInput) {
+export async function createSession(input: SessionUser) {
   const expiresAt = new Date(Date.now() + SESSION_TTL_DAYS * 24 * 60 * 60 * 1000);
 
   const token = sign({
@@ -94,7 +90,6 @@ export async function createSession(input: CreateSessionInput) {
     exp: expiresAt.toISOString(),
   });
 
-  // Route Handler から cookies() で Set-Cookie 可能（Next.js 標準）:contentReference[oaicite:1]{index=1}
   cookies().set(SESSION_COOKIE, token, {
     httpOnly: true,
     secure: true,
@@ -114,15 +109,10 @@ export async function getSessionUserFromToken(token: string): Promise<SessionUse
   if (!exp || Number.isNaN(exp.getTime()) || exp.getTime() < Date.now()) return null;
 
   const principalType: PrincipalType = decoded.principalType === 'AGENCY' ? 'AGENCY' : 'USER';
-  const role = (decoded.role ?? '').toString();
-  const tenantId = decoded.tenantId ? decoded.tenantId.toString() : null;
-  const agencyId = decoded.agencyId ? decoded.agencyId.toString() : null;
   const id = (decoded.sub ?? '').toString();
-  const email = (decoded.email ?? '').toString();
-
+  const role = (decoded.role ?? '').toString();
   if (!id || !role) return null;
 
-  // DB の現物が消されていないか最低限チェック（ここを外すなら true を返すだけでも良い）
   const prisma = getPrisma();
 
   if (principalType === 'AGENCY') {
@@ -130,7 +120,7 @@ export async function getSessionUserFromToken(token: string): Promise<SessionUse
     if (!agency) return null;
     return {
       principalType: 'AGENCY',
-      id,
+      id: agency.id,
       email: agency.email,
       role: 'AGENT',
       tenantId: agency.tenantId,
@@ -145,7 +135,7 @@ export async function getSessionUserFromToken(token: string): Promise<SessionUse
 
   return {
     principalType: 'USER',
-    id,
+    id: user.id,
     email: user.email,
     role: user.role,
     tenantId: user.tenantId ?? null,
@@ -159,16 +149,14 @@ function getCookieValue(cookieHeader: string | null, name: string) {
   if (!cookieHeader) return null;
   const parts = cookieHeader.split(';').map((p) => p.trim());
   for (const part of parts) {
-    if (part.startsWith(`${name}=`)) {
-      return decodeURIComponent(part.slice(name.length + 1));
-    }
+    if (part.startsWith(`${name}=`)) return decodeURIComponent(part.slice(name.length + 1));
   }
   return null;
 }
 
-// ✅ 互換: change-password 等が import しても落ちないようにする
+// 互換: 既存が import してても壊れない用
 export async function getSessionUser(request: Request) {
-  const token = getCookieValue(request.headers.get('cookie'), 'saiya_session');
+  const token = getCookieValue(request.headers.get('cookie'), SESSION_COOKIE);
   if (!token) return null;
   return await getSessionUserFromToken(token);
 }
