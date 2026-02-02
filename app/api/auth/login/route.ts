@@ -1,6 +1,6 @@
 // app/api/auth/login/route.ts
 import { NextResponse } from 'next/server';
-import { getPrisma, resolveXruleTenantId } from '@/lib/db';
+import { getPrisma } from '@/lib/db';
 import { createSession, verifyPassword } from '@/lib/auth';
 import { errorResponse } from '@/lib/api';
 
@@ -11,57 +11,54 @@ export async function POST(request: Request) {
     const prisma = getPrisma();
     const body = await request.json().catch(() => ({}));
     const emailValue = (body.email ?? '').toString().trim().toLowerCase();
-    const passwordValue = (body.password ?? '').toString();
+    const password = (body.password ?? '').toString();
 
-    if (!emailValue || !passwordValue) {
+    if (!emailValue || !password) {
       return NextResponse.json({ message: 'Email and password required' }, { status: 400 });
     }
 
-    // 1) USER（管理者/一般ユーザー）を照合
+    // 1) USER（管理者/社内ユーザー）
     const user = await prisma.user.findUnique({ where: { email: emailValue } });
     if (user && user.passwordHash && user.isActive) {
-      const ok = await verifyPassword(passwordValue, user.passwordHash);
-      if (ok) {
-        await createSession({
-          principalType: 'USER',
-          id: user.id,
-          email: user.email,
-          role: user.role,
-          tenantId: user.tenantId ?? null,
-          agencyId: user.agencyId ?? null,
-          mustChangePassword: user.mustChangePassword ?? false,
-          isActive: user.isActive ?? true,
-        });
+      const ok = await verifyPassword(password, user.passwordHash);
+      if (!ok) return NextResponse.json({ message: 'Invalid credentials' }, { status: 401 });
 
-        return NextResponse.json({
-          role: user.role,
-          mustChangePassword: user.mustChangePassword,
-        });
-      }
+      await createSession({
+        principalType: 'USER',
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        tenantId: user.tenantId ?? null,
+        agencyId: user.agencyId ?? null,
+        mustChangePassword: user.mustChangePassword ?? false,
+        isActive: user.isActive ?? true,
+      });
+
+      return NextResponse.json({
+        role: user.role,
+        mustChangePassword: user.mustChangePassword ?? false,
+      });
     }
 
-    // 2) AGENCY（代理店）を照合（email が unique じゃない前提なので findFirst）
+    // 2) AGENCY（代理店）
+    // email が unique でない想定なので findFirst を使う
     const agency = await prisma.agency.findFirst({
       where: { email: emailValue },
       orderBy: { createdAt: 'desc' },
     });
 
-    if (!agency || !agency.passwordHash || !agency.isActive) {
+    if (!agency || !agency.passwordHash) {
       return NextResponse.json({ message: 'Invalid credentials' }, { status: 401 });
     }
 
-    const okAgency = await verifyPassword(passwordValue, agency.passwordHash);
-    if (!okAgency) {
-      return NextResponse.json({ message: 'Invalid credentials' }, { status: 401 });
-    }
-
-    const tenantId = agency.tenantId ?? (await resolveXruleTenantId(prisma));
-    if (!tenantId) {
-      return NextResponse.json({ message: 'Tenant required' }, { status: 400 });
-    }
-
-    const agencyEmail = agency.email ?? '';
+    // nullable対策（ここがビルドで落ちてた箇所）
+    const agencyEmail = (agency.email ?? '').toString();
     if (!agencyEmail) {
+      return NextResponse.json({ message: 'Invalid credentials' }, { status: 401 });
+    }
+
+    const okAgency = await verifyPassword(password, agency.passwordHash);
+    if (!okAgency) {
       return NextResponse.json({ message: 'Invalid credentials' }, { status: 401 });
     }
 
@@ -70,7 +67,7 @@ export async function POST(request: Request) {
       id: agency.id,
       email: agencyEmail,
       role: 'AGENT',
-      tenantId,
+      tenantId: agency.tenantId ?? null,
       agencyId: agency.id,
       mustChangePassword: false,
       isActive: true,
