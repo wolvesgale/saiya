@@ -1,6 +1,7 @@
+// app/api/auth/login/route.ts
 import { NextResponse } from 'next/server';
 import { getPrisma } from '@/lib/db';
-import { createSession, verifyPassword } from '@/lib/auth';
+import { createSession, verifyPassword, type SessionUser } from '@/lib/auth';
 import { errorResponse } from '@/lib/api';
 
 export const runtime = 'nodejs';
@@ -17,17 +18,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: 'Email and password required' }, { status: 400 });
     }
 
-    // 1) USER（管理者/社内ユーザー）を照合
+    // 1) ユーザー（管理者/社内ユーザー）で照合
     const user = await prisma.user.findUnique({ where: { email: emailValue } });
-
     if (user && user.passwordHash && user.isActive) {
       const ok = await verifyPassword(passwordValue, user.passwordHash);
       if (!ok) {
-        return NextResponse.json({ message: 'Invalid credentials' }, { status: 401 });
+      return NextResponse.json({ message: 'Invalid credentials' }, { status: 401 });
       }
-
-      // SessionUser 形に整形して createSession に渡す（principalType 必須）
-      await createSession({
+      const sessionUser: SessionUser = {
         principalType: 'USER',
         id: user.id,
         email: user.email,
@@ -36,41 +34,39 @@ export async function POST(request: Request) {
         agencyId: user.agencyId ?? null,
         mustChangePassword: user.mustChangePassword ?? false,
         isActive: user.isActive ?? true,
-      });
-
+      };
+      await createSession(sessionUser);
       return NextResponse.json({
         role: user.role,
         mustChangePassword: user.mustChangePassword ?? false,
       });
     }
 
-    // 2) AGENCY（代理店）を照合
-    // Agency.email が unique ではないため findUnique は使えない → findFirst を使う
+    // 2) 代理店を照合（Agency.email は unique ではない前提なので findFirst）
     const agency = await prisma.agency.findFirst({
       where: { email: emailValue },
-      orderBy: { createdAt: 'desc' }, // 同一emailが複数あり得るなら最新を優先
+      orderBy: { createdAt: 'desc' },
     });
 
     if (!agency || !agency.passwordHash) {
       return NextResponse.json({ message: 'Invalid credentials' }, { status: 401 });
     }
-
     const okAgency = await verifyPassword(passwordValue, agency.passwordHash);
     if (!okAgency) {
       return NextResponse.json({ message: 'Invalid credentials' }, { status: 401 });
     }
 
-    await createSession({
+    const sessionAgency: SessionUser = {
       principalType: 'AGENCY',
       id: agency.id,
-      email: agency.email,
+      email: agency.email ?? '',      // null を文字列に
       role: 'AGENT',
       tenantId: agency.tenantId ?? null,
       agencyId: agency.id,
       mustChangePassword: false,
       isActive: true,
-    });
-
+    };
+    await createSession(sessionAgency);
     return NextResponse.json({
       role: 'AGENT',
       mustChangePassword: false,
