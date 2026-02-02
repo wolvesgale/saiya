@@ -73,16 +73,15 @@ export async function POST(request: Request) {
     if (roleResponse) return roleResponse;
 
     // ========= 2-2: “本番がこのrouteを動かしている”証明ログ =========
-    // ※値を変えてデプロイすれば「反映されてる/されてない」が一発で分かる
-    console.log('[sales POST] route-version:', '2026-02-02-b');
+    console.log('[sales POST] route-version:', '2026-02-02-c');
     console.log('[sales POST] user keys:', Object.keys(user as any));
     console.log('[sales POST] user.id:', (user as any)?.id);
     // ============================================================
 
-    // ★ 監査カラム：作成者ID（SessionUser.id に固定）
+    // ★監査カラム：DBの createdByUserId（NOT NULL）を必ず埋める
+    // セッションの principal が USER でも AGENCY でも、とにかく “現在のprincipal id” を入れる（止血）
     const createdByUserId = user.id;
 
-    // 理屈上ここには来ない想定だが、DB NOT NULL のため保険
     if (!createdByUserId) {
       console.error('[sales POST] missing user.id', { keys: Object.keys(user as any) });
       return NextResponse.json(
