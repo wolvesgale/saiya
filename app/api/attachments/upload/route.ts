@@ -7,12 +7,44 @@ import { Readable } from 'stream';
 
 export const runtime = 'nodejs';
 
+function pickAllowedEntityType(entityTypeRaw: string) {
+  const allowed = new Set(Object.values(AttachmentEntityType));
+  if (!allowed.has(entityTypeRaw as AttachmentEntityType)) return null;
+  return entityTypeRaw as AttachmentEntityType;
+}
+
+async function inferTenantIdFromEntity(prisma: ReturnType<typeof getPrisma>, entityType: AttachmentEntityType, entityId: string) {
+  // NOTE: AttachmentEntityType の定義に合わせて必要なら追加してください。
+  // ここではまず VENUE / EVENT / AGENCY / INTERMEDIARY を推定で実装。
+  switch (entityType) {
+    case 'VENUE': {
+      const venue = await prisma.venue.findUnique({ where: { id: entityId }, select: { tenantId: true } });
+      return venue?.tenantId ?? null;
+    }
+    case 'EVENT': {
+      const event = await prisma.event.findUnique({ where: { id: entityId }, select: { tenantId: true } });
+      return event?.tenantId ?? null;
+    }
+    case 'AGENCY': {
+      const agency = await prisma.agency.findUnique({ where: { id: entityId }, select: { tenantId: true } });
+      return agency?.tenantId ?? null;
+    }
+    case 'INTERMEDIARY': {
+      const intermediary = await prisma.intermediary.findUnique({ where: { id: entityId }, select: { tenantId: true } });
+      return intermediary?.tenantId ?? null;
+    }
+    default:
+      return null;
+  }
+}
+
 export async function POST(request: Request) {
   const prisma = getPrisma();
   try {
     const { user, response } = await requireSession(request);
     if (response) return response;
     if (!user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+
     const roleResponse = requireRoles(user.role, ['SUPER_ADMIN', 'ADMIN']);
     if (roleResponse) return roleResponse;
 
@@ -26,19 +58,37 @@ export async function POST(request: Request) {
     }
 
     const entityIdValue = String(entityId ?? '').trim();
-    const entityTypeRaw = String(entityType ?? '');
-    const allowedEntityTypes = new Set(Object.values(AttachmentEntityType));
     if (!entityIdValue) {
       return NextResponse.json({ message: 'Invalid entityId' }, { status: 400 });
     }
-    if (!allowedEntityTypes.has(entityTypeRaw as AttachmentEntityType)) {
+
+    const entityTypeRaw = String(entityType ?? '');
+    const entityTypeEnum = pickAllowedEntityType(entityTypeRaw);
+    if (!entityTypeEnum) {
       return NextResponse.json({ message: 'Invalid entityType' }, { status: 400 });
     }
-    const entityTypeEnum = entityTypeRaw as AttachmentEntityType;
 
-    const tenantId = user.role === 'SUPER_ADMIN' ? formData.get('tenantId') ?? user.tenantId : user.tenantId;
-    if (!tenantId || typeof tenantId !== 'string') {
+    // tenantId: 1) formData or user.tenantId 2) entity 逆引き
+    let tenantId: string | null = null;
+
+    if (user.role === 'SUPER_ADMIN') {
+      const fromForm = formData.get('tenantId');
+      tenantId = (typeof fromForm === 'string' && fromForm.trim()) ? fromForm.trim() : (user.tenantId ?? null);
+    } else {
+      tenantId = user.tenantId ?? null;
+    }
+
+    if (!tenantId) {
+      tenantId = await inferTenantIdFromEntity(prisma, entityTypeEnum, entityIdValue);
+    }
+
+    if (!tenantId) {
       return NextResponse.json({ message: 'Tenant required' }, { status: 400 });
+    }
+
+    // テナント越境防止（SUPER_ADMIN は許可）
+    if (user.role !== 'SUPER_ADMIN' && user.tenantId && tenantId !== user.tenantId) {
+      return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     }
 
     const storageProvider = process.env.FILE_STORAGE_PROVIDER ?? 'blob';
@@ -63,8 +113,10 @@ export async function POST(request: Request) {
         scopes: ['https://www.googleapis.com/auth/drive'],
       });
       const drive = google.drive({ version: 'v3', auth });
+
       const buffer = Buffer.from(await file.arrayBuffer());
       const stream = Readable.from(buffer);
+
       const driveResponse = await drive.files.create({
         requestBody: {
           name: file.name,
@@ -104,7 +156,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: 'Invalid FILE_STORAGE_PROVIDER' }, { status: 500 });
     }
 
-    const blob = await put(`attachments/${tenantId}/${file.name}`, file, { access: 'public' });
+    const safeName = file.name.replace(/[^\w.\-()]+/g, '_');
+    const uniqueKey = `attachments/${tenantId}/${entityTypeEnum}/${entityIdValue}/${Date.now()}-${safeName}`;
+
+    // put() / access の仕様は Vercel Blob に準拠 
+    const blob = await put(uniqueKey, file, { access: 'public' });
 
     const attachment = await prisma.attachment.create({
       data: {
