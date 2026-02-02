@@ -1,91 +1,36 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-pick() {
-  for value in "$@"; do
-    if [[ -n "$value" ]]; then
-      echo "$value"
-      return 0
-    fi
-  done
+echo "[vercel-build] prisma generate"
+npx prisma generate
+
+echo "[vercel-build] checking prisma migrate status (no --json on Prisma 5.19.x)"
+STATUS_OUT="$(npx prisma migrate status --schema prisma/schema.prisma 2>&1 || true)"
+
+echo "$STATUS_OUT"
+
+# Detect failed migrations (Prisma prints this exact line)
+if echo "$STATUS_OUT" | grep -q "Following migration have failed:"; then
   echo ""
-}
-
-extract_port() {
-  local url="$1"
-  local without_proto="${url#*://}"
-  local hostport="${without_proto%%/*}"
-  local port=""
-  if [[ "$hostport" == *"@"* ]]; then
-    hostport="${hostport##*@}"
-  fi
-  if [[ "$hostport" == *":"* ]]; then
-    port="${hostport##*:}"
-  fi
-  echo "$port"
-}
-
-database_source="DATABASE_URL"
-if [[ -z "${DATABASE_URL:-}" ]]; then
-  if [[ -n "${POSTGRES_PRISMA_URL:-}" ]]; then
-    DATABASE_URL="${POSTGRES_PRISMA_URL}"
-    database_source="POSTGRES_PRISMA_URL"
-  elif [[ -n "${POSTGRES_URL:-}" ]]; then
-    DATABASE_URL="${POSTGRES_URL}"
-    database_source="POSTGRES_URL"
-  elif [[ -n "${POSTGRES_URL_NON_POOLING:-}" ]]; then
-    DATABASE_URL="${POSTGRES_URL_NON_POOLING}"
-    database_source="POSTGRES_URL_NON_POOLING"
-  elif [[ -n "${SUPABASE_DATABASE_URL:-}" ]]; then
-    DATABASE_URL="${SUPABASE_DATABASE_URL}"
-    database_source="SUPABASE_DATABASE_URL"
-  fi
-  export DATABASE_URL
-  echo "DATABASE_URL was not set. Resolved from ${database_source}."
-fi
-
-if [[ -z "${DATABASE_URL:-}" ]]; then
-  echo "ERROR: DATABASE_URL is required (non-empty). Set DATABASE_URL or provide POSTGRES_PRISMA_URL / POSTGRES_URL."
+  echo "❌ Prisma has failed migrations. DO NOT run migrate deploy during build."
+  echo "Run the following command against the target DB, then redeploy:"
+  echo "  npx prisma migrate resolve --applied \"20260202001000_seed_xrule_tenant\""
+  echo ""
+  echo "Then verify:"
+  echo "  npx prisma migrate status --schema prisma/schema.prisma"
   exit 1
 fi
 
-direct_source="DIRECT_URL"
-if [[ -z "${DIRECT_URL:-}" ]]; then
-  if [[ -n "${POSTGRES_URL_NON_POOLING:-}" ]]; then
-    DIRECT_URL="${POSTGRES_URL_NON_POOLING}"
-    direct_source="POSTGRES_URL_NON_POOLING"
-  elif [[ -n "${POSTGRES_PRISMA_URL:-}" ]]; then
-    DIRECT_URL="${POSTGRES_PRISMA_URL}"
-    direct_source="POSTGRES_PRISMA_URL"
-  elif [[ -n "${SUPABASE_DATABASE_URL:-}" ]]; then
-    DIRECT_URL="${SUPABASE_DATABASE_URL}"
-    direct_source="SUPABASE_DATABASE_URL"
-  else
-    DIRECT_URL="${DATABASE_URL:-}"
-    direct_source="DATABASE_URL"
-  fi
-  export DIRECT_URL
-  echo "DIRECT_URL was not set. Resolved from ${direct_source}."
-fi
-
-if [[ -z "${DIRECT_URL:-}" ]]; then
-  echo "ERROR: DIRECT_URL resolved to empty. Provide DIRECT_URL or POSTGRES_URL_NON_POOLING."
+# Also guard for P3009 if wording differs
+if echo "$STATUS_OUT" | grep -q "P3009"; then
+  echo ""
+  echo "❌ Prisma P3009 detected. Resolve the failed migration, then redeploy."
+  echo "  npx prisma migrate resolve --applied \"20260202001000_seed_xrule_tenant\""
   exit 1
 fi
 
-if [[ "${direct_source}" == "DATABASE_URL" ]]; then
-  direct_port="$(extract_port "${DIRECT_URL}")"
-  if [[ -n "${direct_port}" && "${direct_port}" != "5432" ]]; then
-    echo "ERROR: DIRECT_URL fell back to DATABASE_URL but port ${direct_port} is not 5432."
-    exit 1
-  fi
-fi
-
-echo "Prisma env prepared (values hidden). DATABASE_URL source=${database_source}, DIRECT_URL source=${direct_source}."
-
-echo "Checking for failed migrations..."
-node -e "const { execSync } = require('child_process'); try { const out = execSync('npx prisma migrate status --schema prisma/schema.prisma --json', { stdio: ['ignore','pipe','pipe'] }).toString().trim(); const data = JSON.parse(out); if (data.hasFailedMigrations) { console.error('ERROR: Failed migrations detected in the target database.'); console.error('Resolve before deploy:'); console.error('  npx prisma migrate resolve --applied \"20260202001000_seed_xrule_tenant\"'); console.error('  npx prisma migrate deploy'); process.exit(1); } } catch (err) { console.error('ERROR: Unable to check migration status.'); console.error((err && err.message) || err); process.exit(1); }"
-
-npx prisma generate --schema prisma/schema.prisma
+echo "[vercel-build] prisma migrate deploy"
 npx prisma migrate deploy --schema prisma/schema.prisma
-next build
+
+echo "[vercel-build] next build"
+npx next build

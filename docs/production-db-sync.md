@@ -79,3 +79,4 @@ npx prisma migrate resolve --applied 20260202001000_seed_xrule_tenant
 ```
 
 After resolving, re-run `npx prisma migrate deploy`.
+Prisma 5.19.x does not support `prisma migrate status --json`, so builds check the text output instead.

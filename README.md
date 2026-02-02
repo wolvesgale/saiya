@@ -75,6 +75,7 @@ npx prisma migrate resolve --rolled-back 20260202001000_seed_xrule_tenant
 npx prisma migrate resolve --applied 20260202001000_seed_xrule_tenant
 ```
 復旧後に `npx prisma migrate deploy` を実行します。
+※ Prisma 5.19.x では `prisma migrate status --json` が使えないため、build ではテキスト出力を判定します。
 
 ### セキュリティ注意
 - `.env` などの秘密情報は **絶対にコミットしない** でください。
