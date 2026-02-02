@@ -1,3 +1,4 @@
+// app/api/attachments/upload/route.ts
 import { NextResponse } from 'next/server';
 import { put } from '@vercel/blob';
 import { getPrisma } from '@/lib/db';
@@ -7,19 +8,22 @@ import { Readable } from 'stream';
 
 export const runtime = 'nodejs';
 
-async function resolveTenantIdForEntity(
-  prisma: ReturnType<typeof getPrisma>,
-  entityType: AttachmentEntityType,
-  entityId: string
-): Promise<string | null> {
-  // ✅ ここは「あなたの Prisma schema に存在する entityType だけ」扱う
-  // いま UI から来るのは VENUE なので、最低限 VENUE は必須。
+async function assertEntityBelongsToTenant(params: {
+  prisma: ReturnType<typeof getPrisma>;
+  entityType: AttachmentEntityType;
+  entityId: string;
+  tenantId: string;
+}) {
+  const { prisma, entityType, entityId, tenantId } = params;
+
   if (entityType === AttachmentEntityType.VENUE) {
     const venue = await prisma.venue.findUnique({
       where: { id: entityId },
       select: { tenantId: true },
     });
-    return venue?.tenantId ?? null;
+    if (!venue) return { ok: false as const, message: 'Venue not found' };
+    if (venue.tenantId !== tenantId) return { ok: false as const, message: 'Invalid tenant for venue' };
+    return { ok: true as const };
   }
 
   if (entityType === AttachmentEntityType.EVENT) {
@@ -27,19 +31,13 @@ async function resolveTenantIdForEntity(
       where: { id: entityId },
       select: { tenantId: true },
     });
-    return event?.tenantId ?? null;
+    if (!event) return { ok: false as const, message: 'Event not found' };
+    if (event.tenantId !== tenantId) return { ok: false as const, message: 'Invalid tenant for event' };
+    return { ok: true as const };
   }
 
-  if (entityType === AttachmentEntityType.INTERMEDIARY) {
-    const intermediary = await prisma.intermediary.findUnique({
-      where: { id: entityId },
-      select: { tenantId: true },
-    });
-    return intermediary?.tenantId ?? null;
-  }
-
-  // schema に存在しない種類を無理に扱わない（将来追加時にここへ追記）
-  return null;
+  // schema.prisma 上ここには来ない想定（将来enum拡張したらここも更新）
+  return { ok: false as const, message: 'Unsupported entityType' };
 }
 
 export async function POST(request: Request) {
@@ -54,40 +52,42 @@ export async function POST(request: Request) {
 
     const formData = await request.formData();
     const file = formData.get('file');
-    const entityTypeRaw = formData.get('entityType');
-    const entityIdRaw = formData.get('entityId');
+    const entityType = formData.get('entityType');
+    const entityId = formData.get('entityId');
 
-    if (!(file instanceof File) || !entityTypeRaw || !entityIdRaw) {
+    if (!(file instanceof File) || !entityType || !entityId) {
       return NextResponse.json({ message: 'Invalid upload payload' }, { status: 400 });
     }
 
-    const entityId = String(entityIdRaw ?? '').trim();
-    if (!entityId) return NextResponse.json({ message: 'Invalid entityId' }, { status: 400 });
+    const entityIdValue = String(entityId ?? '').trim();
+    const entityTypeRaw = String(entityType ?? '').trim();
 
-    const entityTypeStr = String(entityTypeRaw ?? '').trim();
-    const allowedEntityTypes = new Set(Object.values(AttachmentEntityType));
-    if (!allowedEntityTypes.has(entityTypeStr as AttachmentEntityType)) {
+    if (!entityIdValue) {
+      return NextResponse.json({ message: 'Invalid entityId' }, { status: 400 });
+    }
+
+    // AttachmentEntityType は schema.prisma の enum から生成されるため
+    // "VENUE" | "EVENT" 以外をここで弾く
+    const allowed = new Set(Object.values(AttachmentEntityType));
+    if (!allowed.has(entityTypeRaw as AttachmentEntityType)) {
       return NextResponse.json({ message: 'Invalid entityType' }, { status: 400 });
     }
-    const entityType = entityTypeStr as AttachmentEntityType;
+    const entityTypeEnum = entityTypeRaw as AttachmentEntityType;
 
-    // ✅ tenantId はログインユーザー基準
-    const tenantId =
-      user.role === 'SUPER_ADMIN'
-        ? (formData.get('tenantId') ?? user.tenantId)
-        : user.tenantId;
-
+    const tenantId = user.role === 'SUPER_ADMIN' ? (formData.get('tenantId') ?? user.tenantId) : user.tenantId;
     if (!tenantId || typeof tenantId !== 'string') {
       return NextResponse.json({ message: 'Tenant required' }, { status: 400 });
     }
 
-    // ✅ entity が同 tenant に属しているかチェック（安全側）
-    const entityTenantId = await resolveTenantIdForEntity(prisma, entityType, entityId);
-    if (!entityTenantId) {
-      return NextResponse.json({ message: 'Invalid entity' }, { status: 400 });
-    }
-    if (entityTenantId !== tenantId) {
-      return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    // 添付先が同一 tenant か検証（誤リンク/越境を防ぐ）
+    const ownership = await assertEntityBelongsToTenant({
+      prisma,
+      entityType: entityTypeEnum,
+      entityId: entityIdValue,
+      tenantId,
+    });
+    if (!ownership.ok) {
+      return NextResponse.json({ message: ownership.message }, { status: 400 });
     }
 
     const storageProvider = process.env.FILE_STORAGE_PROVIDER ?? 'blob';
@@ -137,8 +137,8 @@ export async function POST(request: Request) {
       const attachment = await prisma.attachment.create({
         data: {
           tenantId,
-          entityType,
-          entityId,
+          entityType: entityTypeEnum,
+          entityId: entityIdValue,
           blobUrl: null,
           driveFileId,
           driveWebViewLink: driveResponse.data.webViewLink ?? null,
@@ -157,14 +157,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: 'Invalid FILE_STORAGE_PROVIDER' }, { status: 500 });
     }
 
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const blob = await put(`attachments/${tenantId}/${entityType}/${entityId}/${safeName}`, file, { access: 'public' });
+    const blob = await put(`attachments/${tenantId}/${file.name}`, file, { access: 'public' });
 
     const attachment = await prisma.attachment.create({
       data: {
         tenantId,
-        entityType,
-        entityId,
+        entityType: entityTypeEnum,
+        entityId: entityIdValue,
         blobUrl: blob.url,
         driveFileId: null,
         driveWebViewLink: null,
