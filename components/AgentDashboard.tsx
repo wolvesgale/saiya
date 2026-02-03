@@ -9,6 +9,7 @@ type EventSummary = {
   title: string;
   startDate: string;
   endDate: string;
+  agencyId: string;
   agencyName: string | null;
   venueName: string | null;
   venueId: string;

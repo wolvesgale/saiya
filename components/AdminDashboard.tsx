@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getAgencyColor } from '@/lib/agencyColor';
 import { buildWeekLanes, getMonthWeeks } from '@/lib/calendar';
+import AdminSalesManagement from '@/components/AdminSalesManagement';
 
 type Agency = {
   id: string;
@@ -27,7 +28,9 @@ type Event = {
   startDate: string;
   endDate: string;
   agencyId: string;
+  agencyName?: string | null;
   venueId: string;
+  venueName?: string | null;
   intermediaryId: string | null;
   intermediaryName: string | null;
   memo: string | null;
@@ -62,7 +65,7 @@ type VenueDailyItem = {
 };
 
 type SectionKey = 'agency' | 'user' | 'intermediary' | 'venue' | 'event' | 'global';
-type TabKey = 'events' | 'venues' | 'agencies' | 'intermediaries' | 'users' | 'reports';
+type TabKey = 'events' | 'venues' | 'agencies' | 'intermediaries' | 'users' | 'reports' | 'sales';
 
 const cashHandlingOptions = [
   { value: 'HOLD', label: '預かり' },
@@ -528,6 +531,7 @@ export default function AdminDashboard() {
     { key: 'agencies', label: '代理店', description: '代理店一覧と設定' },
     { key: 'intermediaries', label: '仲介', description: '仲介業者の管理' },
     { key: 'users', label: 'ユーザー', description: '管理ユーザー設定' },
+    { key: 'sales', label: '売上管理', description: '日次売上の編集' },
     { key: 'reports', label: '売上レポート', description: '集計と平均' },
   ];
 
@@ -1076,6 +1080,8 @@ export default function AdminDashboard() {
           </div>
         </section>
       ) : null}
+
+      {activeTab === 'sales' ? <AdminSalesManagement /> : null}
 
       {activeTab === 'reports' ? (
         <div className="space-y-6">
