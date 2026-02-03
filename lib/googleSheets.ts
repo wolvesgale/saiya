@@ -54,7 +54,7 @@ function getCellValue(values: string[][], cell: string) {
 export async function appendDailySales(agencyName: string, venueName: string, date: Date, amount: number) {
   let googleApis: any;
   try {
-    googleApis = await (0, eval)('import("googleapis")');
+    googleApis = await import('googleapis');
   } catch (error) {
     console.warn('[googleSheets] googleapis not available', error);
     return;

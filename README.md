@@ -39,6 +39,7 @@ npm run dev
 - `GOOGLE_SHEETS_SHEET_NAME` : `シート2`（シート名）
 - `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64` : サービスアカウントJSONをBase64化した文字列
 - `GOOGLE_SHEETS_SCOPE` : `https://www.googleapis.com/auth/spreadsheets`（任意）
+- **運用必須**: スプレッドシートをサービスアカウントの `client_email` に編集権限で共有する
 
 #### サービスアカウント鍵（SECRET KEY）の発行手順
 1. Google Cloud Console → **IAM と管理** → **サービス アカウント** を開く

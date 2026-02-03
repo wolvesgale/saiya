@@ -117,7 +117,7 @@ export async function POST(request: Request) {
         return errorResponse(parseError);
       }
 
-      const { google } = await (0, eval)('import("googleapis")');
+      const { google } = await import('googleapis');
       const auth = new google.auth.GoogleAuth({
         credentials,
         scopes: ['https://www.googleapis.com/auth/drive'],
@@ -137,6 +137,7 @@ export async function POST(request: Request) {
           body: stream,
         },
         fields: 'id, webViewLink, webContentLink',
+        supportsAllDrives: true,
       });
 
       const driveFileId = driveResponse.data.id;
@@ -147,6 +148,20 @@ export async function POST(request: Request) {
           entityId: entityIdValue,
         });
         return NextResponse.json({ message: 'Failed to upload to Google Drive' }, { status: 500 });
+      }
+
+      try {
+        await drive.permissions.create({
+          fileId: driveFileId,
+          requestBody: { role: 'reader', type: 'anyone' },
+          supportsAllDrives: true,
+        });
+      } catch (permissionError) {
+        console.error('[attachments] failed to set drive permission', {
+          error: permissionError,
+          driveFileId,
+        });
+        return NextResponse.json({ message: 'Failed to set Google Drive permission' }, { status: 500 });
       }
 
       const attachment = await prisma.attachment.create({

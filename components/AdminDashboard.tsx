@@ -35,6 +35,8 @@ type User = { id: string; email: string; role: string; isActive: boolean };
 
 type Venue = { id: string; name: string; address: string | null; cashHandling: string | null; attachmentUrl: string | null };
 
+type Attachment = { id: string; filename: string; url: string | null; createdAt: string };
+
 type Intermediary = { id: string; name: string; reportFormUrl: string | null };
 
 type Event = {
@@ -94,6 +96,8 @@ export default function AdminDashboard() {
   const [summary, setSummary] = useState<SummaryResponse | null>(null);
   const [weeklySummary, setWeeklySummary] = useState<WeeklySummaryItem[]>([]);
   const [venueDailySummary, setVenueDailySummary] = useState<VenueDailyItem[]>([]);
+  const [venueAttachments, setVenueAttachments] = useState<Record<string, Attachment[]>>({});
+  const [venueAttachmentLoading, setVenueAttachmentLoading] = useState<Record<string, boolean>>({});
   const [messages, setMessages] = useState<Record<SectionKey, string | null>>({
     agency: null,
     user: null,
@@ -151,6 +155,22 @@ export default function AdminDashboard() {
     if (intermediariesRes.ok) setIntermediaries(await intermediariesRes.json());
   };
 
+  const loadVenueAttachments = async (venueId: string) => {
+    setVenueAttachmentLoading((prev) => ({ ...prev, [venueId]: true }));
+    try {
+      const response = await fetch(`/api/attachments?entityType=VENUE&entityId=${venueId}`);
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        setSectionMessage('venue', body?.message ?? '添付ファイルの取得に失敗しました。');
+        return;
+      }
+      const data = await response.json();
+      setVenueAttachments((prev) => ({ ...prev, [venueId]: data }));
+    } finally {
+      setVenueAttachmentLoading((prev) => ({ ...prev, [venueId]: false }));
+    }
+  };
+
   const refreshSummary = async (date: Date) => {
     const year = date.getFullYear();
     const month = date.getMonth() + 1;
@@ -179,6 +199,11 @@ export default function AdminDashboard() {
   useEffect(() => {
     refresh();
   }, []);
+
+  useEffect(() => {
+    if (activeTab !== 'venues' || venues.length === 0) return;
+    Promise.all(venues.map((venue) => loadVenueAttachments(venue.id))).catch(() => null);
+  }, [activeTab, venues]);
 
   useEffect(() => {
     refreshSummary(currentMonth);
@@ -286,36 +311,30 @@ export default function AdminDashboard() {
     setSectionMessage('user', body?.message ?? 'ユーザーの作成に失敗しました。');
   };
 
-  const handleUploadVenueAttachment = async (venueId: string, file: File) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('entityType', 'VENUE');
-    formData.append('entityId', venueId);
+  const handleUploadVenueAttachments = async (venueId: string, files: File[]) => {
+    if (!files.length) return;
+    setSectionMessage('venue', null);
 
-    const response = await fetch('/api/attachments/upload', {
-      method: 'POST',
-      body: formData,
-    });
+    for (const file of files) {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('entityType', 'VENUE');
+      formData.append('entityId', venueId);
 
-    if (!response.ok) {
-      const body = await response.json().catch(() => null);
-      setSectionMessage('venue', body?.message ?? '添付ファイルのアップロードに失敗しました。');
-      return;
+      const response = await fetch('/api/attachments/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        setSectionMessage('venue', body?.message ?? '添付ファイルのアップロードに失敗しました。');
+        return;
+      }
     }
 
-    const payload = await response.json();
-    const attachmentUrl = payload.blobUrl ?? payload.driveWebViewLink ?? null;
-
-    if (attachmentUrl) {
-      await fetch(`/api/venues/${venueId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ attachmentUrl }),
-      }).catch(() => null);
-    }
-
-    setSectionMessage('venue', '添付ファイルを更新しました。');
-    refresh();
+    setSectionMessage('venue', '添付ファイルを追加しました。');
+    await loadVenueAttachments(venueId);
   };
 
   const handleCreateVenue = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -323,7 +342,9 @@ export default function AdminDashboard() {
     setSectionMessage('venue', null);
 
     const formData = new FormData(event.currentTarget);
-    const file = formData.get('venueFile');
+    const files = formData
+      .getAll('venueFile')
+      .filter((item): item is File => item instanceof File && item.size > 0);
 
     const response = await fetch('/api/venues', {
       method: 'POST',
@@ -352,8 +373,8 @@ export default function AdminDashboard() {
     setSectionMessage('venue', '会場を作成しました。');
 
     // 作成後にファイルがあれば自動アップロードして紐付け
-    if (createdVenue?.id && file instanceof File && file.size > 0) {
-      await handleUploadVenueAttachment(createdVenue.id, file);
+    if (createdVenue?.id && files.length > 0) {
+      await handleUploadVenueAttachments(createdVenue.id, files);
     }
 
     event.currentTarget.reset();
@@ -413,6 +434,17 @@ export default function AdminDashboard() {
 
     const body = await response.json().catch(() => null);
     setSectionMessage('intermediary', body?.message ?? '仲介業者の作成に失敗しました。');
+  };
+
+  const handleDeleteAttachment = async (venueId: string, attachmentId: string) => {
+    const response = await fetch(`/api/attachments/${attachmentId}`, { method: 'DELETE' });
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      setSectionMessage('venue', body?.message ?? '添付ファイルの削除に失敗しました。');
+      return;
+    }
+    setSectionMessage('venue', '添付ファイルを削除しました。');
+    await loadVenueAttachments(venueId);
   };
 
   const handleUpdateIntermediary = async (intermediaryId: string, payload: { name: string; reportFormUrl: string | null }) => {
@@ -773,8 +805,8 @@ export default function AdminDashboard() {
 
             <div className="md:col-span-2">
               <label htmlFor="venue-file">資料（アップロード / 任意）</label>
-              <input id="venue-file" name="venueFile" type="file" />
-              <div className="text-xs text-slate-500 mt-1">※作成後に自動アップロードし、会場に紐づけます</div>
+              <input id="venue-file" name="venueFile" type="file" multiple />
+              <div className="text-xs text-slate-500 mt-1">※作成後に自動アップロードし、会場に紐づけます（複数可）</div>
             </div>
 
             <div>
@@ -822,29 +854,48 @@ export default function AdminDashboard() {
                   {venue.cashHandling === 'HOLD' ? '預かり' : venue.cashHandling === 'TAKE_HOME' ? '持ち帰り' : '未設定'})
                 </div>
 
-                {venue.attachmentUrl ? (
-                  <a className="text-xs text-indigo-300" href={venue.attachmentUrl} target="_blank" rel="noreferrer">
-                    添付ファイルを開く
-                  </a>
+                {venueAttachmentLoading[venue.id] ? (
+                  <div className="text-xs text-slate-500">添付ファイルを読み込み中...</div>
+                ) : venueAttachments[venue.id]?.length ? (
+                  <ul className="space-y-1 text-xs text-slate-300">
+                    {venueAttachments[venue.id].map((attachment) => (
+                      <li key={attachment.id} className="flex flex-wrap items-center gap-2">
+                        {attachment.url ? (
+                          <a className="text-indigo-300 underline" href={attachment.url} target="_blank" rel="noreferrer">
+                            {attachment.filename}
+                          </a>
+                        ) : (
+                          <span>{attachment.filename}</span>
+                        )}
+                        <button
+                          type="button"
+                          className="text-rose-300 underline"
+                          onClick={() => handleDeleteAttachment(venue.id, attachment.id)}
+                        >
+                          削除
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
                 ) : (
                   <div className="text-xs text-slate-500">添付ファイルなし</div>
                 )}
 
                 <details className="mt-2">
-                  <summary className="cursor-pointer text-xs text-slate-300">添付を変更</summary>
+                  <summary className="cursor-pointer text-xs text-slate-300">添付を追加</summary>
                   <form
                     onSubmit={(submitEvent) => {
                       submitEvent.preventDefault();
                       const fd = new FormData(submitEvent.currentTarget);
-                      const file = fd.get('file');
-                      if (file instanceof File && file.size > 0) {
-                        handleUploadVenueAttachment(venue.id, file);
+                      const files = fd.getAll('file').filter((item): item is File => item instanceof File && item.size > 0);
+                      if (files.length > 0) {
+                        handleUploadVenueAttachments(venue.id, files);
                         submitEvent.currentTarget.reset();
                       }
                     }}
                     className="space-y-2 mt-2"
                   >
-                    <input name="file" type="file" />
+                    <input name="file" type="file" multiple />
                     <button className="bg-slate-700 text-white" type="submit">
                       添付をアップロード
                     </button>
