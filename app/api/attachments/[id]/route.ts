@@ -29,6 +29,33 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
 
     auditLog('attachment.deleted', { attachmentId: params.id, userId: user.id });
 
+    if (attachment.driveFileId) {
+      const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
+      const serviceAccountBase64 = process.env.GOOGLE_SERVICE_ACCOUNT_JSON_BASE64;
+      if (!folderId || !serviceAccountBase64) {
+        console.error('[attachments] google drive env missing', {
+          hasFolderId: Boolean(folderId),
+          hasServiceAccount: Boolean(serviceAccountBase64),
+        });
+      } else {
+        try {
+          const credentials = JSON.parse(Buffer.from(serviceAccountBase64, 'base64').toString('utf-8'));
+          const { google } = await import('googleapis');
+          const auth = new google.auth.GoogleAuth({
+            credentials,
+            scopes: ['https://www.googleapis.com/auth/drive'],
+          });
+          const drive = google.drive({ version: 'v3', auth });
+          await drive.files.delete({ fileId: attachment.driveFileId, supportsAllDrives: true });
+        } catch (driveError) {
+          console.error('[attachments] failed to delete drive file', {
+            error: driveError,
+            driveFileId: attachment.driveFileId,
+          });
+        }
+      }
+    }
+
     return NextResponse.json({ ok: true });
   } catch (error) {
     return errorResponse(error);
