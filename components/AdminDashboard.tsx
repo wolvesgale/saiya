@@ -28,7 +28,9 @@ type Event = {
   startDate: string;
   endDate: string;
   agencyId: string;
+  agencyName?: string | null;
   venueId: string;
+  venueName?: string | null;
   intermediaryId: string | null;
   intermediaryName: string | null;
   memo: string | null;
