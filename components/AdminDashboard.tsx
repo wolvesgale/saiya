@@ -1,26 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-
-const agencyColors = [
-  'bg-indigo-500/70',
-  'bg-emerald-500/70',
-  'bg-amber-500/70',
-  'bg-rose-500/70',
-  'bg-sky-500/70',
-  'bg-fuchsia-500/70',
-  'bg-teal-500/70',
-  'bg-lime-500/70',
-];
-
-function getAgencyColor(agencyId: string) {
-  let hash = 0;
-  for (let i = 0; i < agencyId.length; i += 1) {
-    hash = agencyId.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const index = Math.abs(hash) % agencyColors.length;
-  return agencyColors[index];
-}
+import { getAgencyColor } from '@/lib/agencyColor';
+import { buildWeekLanes, getMonthWeeks } from '@/lib/calendar';
 
 type Agency = {
   id: string;
@@ -481,13 +463,9 @@ export default function AdminDashboard() {
   };
 
   const monthLabel = `${currentMonth.getFullYear()}年${currentMonth.getMonth() + 1}月`;
-  const firstDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
-  const daysInMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate();
-  const startWeekday = firstDay.getDay();
-  const dayCells = Array.from({ length: startWeekday + daysInMonth }, (_, index) => {
-    if (index < startWeekday) return null;
-    return index - startWeekday + 1;
-  });
+  const calendarWeeks = useMemo(() => getMonthWeeks(currentMonth), [currentMonth]);
+  const laneHeight = 24;
+  const headerHeight = 24;
 
   const filteredAgencies = useMemo(() => {
     const query = agencyQuery.trim().toLowerCase();
@@ -544,15 +522,6 @@ export default function AdminDashboard() {
     });
   }, [intermediaries, intermediaryQuery]);
 
-  const monthlyEvents = events.filter((eventItem) => {
-    const start = new Date(eventItem.startDate);
-    const end = new Date(eventItem.endDate);
-    const monthStart = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
-    const monthEnd = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
-    return end >= monthStart && start <= monthEnd;
-  });
-
-  const monthStart = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
   const tabs: { key: TabKey; label: string; description: string }[] = [
     { key: 'events', label: 'イベント', description: 'スケジュールとカレンダー' },
     { key: 'venues', label: '会場', description: '会場と添付資料' },
@@ -1043,32 +1012,63 @@ export default function AdminDashboard() {
                   {label}
                 </div>
               ))}
-              {dayCells.map((day, index) => (
-                <div key={`${day ?? 'blank'}-${index}`} className="min-h-[32px] text-center text-slate-300">
-                  {day ?? ''}
-                </div>
-              ))}
             </div>
 
-            <div className="space-y-2">
-              {monthlyEvents.map((eventItem) => {
-                const start = new Date(eventItem.startDate);
-                const end = new Date(eventItem.endDate);
-                const startIndex = Math.max(1, start < monthStart ? 1 : start.getDate());
-                const endIndex = Math.min(daysInMonth, end.getDate());
+            <div className="space-y-3">
+              {calendarWeeks.map((week) => {
+                const lanes = buildWeekLanes(events, week.start, week.end);
+                const rowHeight = headerHeight + Math.max(1, lanes.length) * laneHeight;
                 return (
                   <div
-                    key={eventItem.id}
-                    className="grid items-center"
-                    style={{ gridTemplateColumns: `repeat(${daysInMonth}, minmax(0, 1fr))` }}
+                    key={week.start.toISOString()}
+                    className="relative rounded border border-slate-800/80 bg-slate-900/40"
+                    style={{ minHeight: `${rowHeight}px` }}
                   >
-                    <a
-                      href={`/admin/events/${eventItem.id}`}
-                      className={`${getAgencyColor(eventItem.agencyId)} text-xs text-white rounded px-2 py-1 text-center truncate`}
-                      style={{ gridColumn: `${startIndex} / ${endIndex + 1}` }}
-                    >
-                      {eventItem.title}
-                    </a>
+                    <div className="grid grid-cols-7 text-[11px] text-slate-400">
+                      {week.days.map((day) => {
+                        const isCurrentMonth = day.getMonth() === currentMonth.getMonth();
+                        return (
+                          <div
+                            key={day.toISOString()}
+                            className={`border-r border-slate-800/70 last:border-r-0 px-2 py-1 text-right ${
+                              isCurrentMonth ? 'text-slate-300' : 'text-slate-500'
+                            }`}
+                          >
+                            {day.getDate()}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="absolute left-0 right-0" style={{ top: `${headerHeight}px` }}>
+                      {lanes.map((lane, laneIndex) =>
+                        lane.map((segment) => {
+                          const span = segment.endIndex - segment.startIndex + 1;
+                          const left = (segment.startIndex / 7) * 100;
+                          const width = (span / 7) * 100;
+                          const details = `${segment.event.title}\n${segment.event.startDate}〜${segment.event.endDate}\n${
+                            segment.event.venueName ?? '会場未設定'
+                          } / ${segment.event.agencyName ?? '代理店未設定'}`;
+                          return (
+                            <a
+                              key={`${segment.event.id}-${segment.start.toISOString()}`}
+                              href={`/admin/events/${segment.event.id}`}
+                              title={details}
+                              className={`${getAgencyColor(segment.event.agencyId)} absolute text-[11px] text-white rounded px-2 py-1 truncate shadow-sm`}
+                              style={{
+                                left: `${left}%`,
+                                width: `${width}%`,
+                                top: `${laneIndex * laneHeight + 2}px`,
+                              }}
+                            >
+                              {segment.event.title}
+                            </a>
+                          );
+                        }),
+                      )}
+                      {!lanes.length ? (
+                        <div className="text-[11px] text-slate-600 px-2 py-1">イベントなし</div>
+                      ) : null}
+                    </div>
                   </div>
                 );
               })}

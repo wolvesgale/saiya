@@ -1,6 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { getAgencyColor } from '@/lib/agencyColor';
+import { buildWeekLanes, getMonthWeeks } from '@/lib/calendar';
 
 type EventSummary = {
   id: string;
@@ -81,7 +83,7 @@ export default function AgentDashboard() {
   const [warning, setWarning] = useState<string | null>(null);
   const [reportPrompt, setReportPrompt] = useState<ReportPrompt | null>(null);
 
-  const [currentMonth] = useState(new Date());
+  const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDates, setSelectedDates] = useState<Record<string, string>>({});
 
   const refresh = async () => {
@@ -112,7 +114,6 @@ export default function AgentDashboard() {
 
   useEffect(() => {
     refresh();
-    refreshSummary();
 
     const now = new Date();
     if (now.getHours() >= 21) {
@@ -120,6 +121,11 @@ export default function AgentDashboard() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    refreshSummary();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentMonth]);
 
   // 期限超過の業者報告ポップアップ（1イベントにつき1回だけ）
   useEffect(() => {
@@ -192,6 +198,10 @@ export default function AgentDashboard() {
   };
 
   const monthlyTotal = Object.values(summary?.agencyTotals ?? {}).reduce((sum, value) => sum + value, 0);
+  const monthLabel = `${currentMonth.getFullYear()}年${currentMonth.getMonth() + 1}月`;
+  const calendarWeeks = useMemo(() => getMonthWeeks(currentMonth), [currentMonth]);
+  const laneHeight = 24;
+  const headerHeight = 24;
 
   return (
     <div className="space-y-6">
@@ -270,6 +280,104 @@ export default function AgentDashboard() {
               ) : null}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      <div className="bg-slate-900/70 border border-slate-800 p-6 rounded-lg space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">イベントカレンダー</h2>
+          <div className="flex items-center gap-2">
+            <button
+              className="bg-slate-800 text-slate-200"
+              onClick={() => {
+                const previous = new Date(currentMonth);
+                previous.setMonth(previous.getMonth() - 1);
+                setCurrentMonth(previous);
+              }}
+              type="button"
+            >
+              前月
+            </button>
+            <span className="text-sm text-slate-300">{monthLabel}</span>
+            <button
+              className="bg-slate-800 text-slate-200"
+              onClick={() => {
+                const next = new Date(currentMonth);
+                next.setMonth(next.getMonth() + 1);
+                setCurrentMonth(next);
+              }}
+              type="button"
+            >
+              次月
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-7 text-xs text-slate-400">
+          {['日', '月', '火', '水', '木', '金', '土'].map((label) => (
+            <div key={label} className="text-center py-1">
+              {label}
+            </div>
+          ))}
+        </div>
+
+        <div className="space-y-3">
+          {calendarWeeks.map((week) => {
+            const lanes = buildWeekLanes(events, week.start, week.end);
+            const rowHeight = headerHeight + Math.max(1, lanes.length) * laneHeight;
+            return (
+              <div
+                key={week.start.toISOString()}
+                className="relative rounded border border-slate-800/80 bg-slate-900/40"
+                style={{ minHeight: `${rowHeight}px` }}
+              >
+                <div className="grid grid-cols-7 text-[11px] text-slate-400">
+                  {week.days.map((day) => {
+                    const isCurrentMonth = day.getMonth() === currentMonth.getMonth();
+                    return (
+                      <div
+                        key={day.toISOString()}
+                        className={`border-r border-slate-800/70 last:border-r-0 px-2 py-1 text-right ${
+                          isCurrentMonth ? 'text-slate-300' : 'text-slate-500'
+                        }`}
+                      >
+                        {day.getDate()}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="absolute left-0 right-0" style={{ top: `${headerHeight}px` }}>
+                  {lanes.map((lane, laneIndex) =>
+                    lane.map((segment) => {
+                      const span = segment.endIndex - segment.startIndex + 1;
+                      const left = (segment.startIndex / 7) * 100;
+                      const width = (span / 7) * 100;
+                      const details = `${segment.event.title}\n${segment.event.startDate}〜${segment.event.endDate}\n${
+                        segment.event.venueName ?? '会場未設定'
+                      } / ${segment.event.agencyName ?? '代理店未設定'}`;
+                      return (
+                        <div
+                          key={`${segment.event.id}-${segment.start.toISOString()}`}
+                          title={details}
+                          className={`${getAgencyColor(segment.event.agencyId)} absolute text-[11px] text-white rounded px-2 py-1 truncate shadow-sm`}
+                          style={{
+                            left: `${left}%`,
+                            width: `${width}%`,
+                            top: `${laneIndex * laneHeight + 2}px`,
+                          }}
+                        >
+                          {segment.event.title}
+                        </div>
+                      );
+                    }),
+                  )}
+                  {!lanes.length ? (
+                    <div className="text-[11px] text-slate-600 px-2 py-1">イベントなし</div>
+                  ) : null}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
