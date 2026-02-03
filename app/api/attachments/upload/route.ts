@@ -51,12 +51,21 @@ export async function POST(request: Request) {
     const entityIdValue = String(formData.get('entityId') ?? '').trim();
 
     if (!(file instanceof File) || !entityTypeRaw || !entityIdValue) {
+      console.error('[attachments] invalid upload payload', {
+        hasFile: file instanceof File,
+        entityTypeRaw,
+        entityIdValue,
+      });
       return NextResponse.json({ message: 'Invalid upload payload' }, { status: 400 });
     }
 
     // enum整合（Prisma enum と一致する値のみ許可）
     const allowedEntityTypes = new Set(Object.values(AttachmentEntityType));
     if (!allowedEntityTypes.has(entityTypeRaw as AttachmentEntityType)) {
+      console.error('[attachments] invalid entityType', {
+        entityTypeRaw,
+        allowed: Array.from(allowedEntityTypes),
+      });
       return NextResponse.json({ message: 'Invalid entityType' }, { status: 400 });
     }
     const entityTypeEnum = entityTypeRaw as AttachmentEntityType;
@@ -69,11 +78,20 @@ export async function POST(request: Request) {
     });
 
     if (!resolvedTenantId) {
+      console.error('[attachments] tenant resolution failed', {
+        entityType: entityTypeEnum,
+        entityId: entityIdValue,
+      });
       return NextResponse.json({ message: 'Tenant required' }, { status: 400 });
     }
 
     // ADMIN は自テナントのみ
     if (user.role !== 'SUPER_ADMIN' && resolvedTenantId !== user.tenantId) {
+      console.error('[attachments] tenant mismatch', {
+        userId: user.id,
+        userTenantId: user.tenantId,
+        resolvedTenantId,
+      });
       return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     }
 
@@ -84,6 +102,10 @@ export async function POST(request: Request) {
       const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
       const serviceAccountBase64 = process.env.GOOGLE_SERVICE_ACCOUNT_JSON_BASE64;
       if (!folderId || !serviceAccountBase64) {
+        console.error('[attachments] google drive env missing', {
+          hasFolderId: Boolean(folderId),
+          hasServiceAccount: Boolean(serviceAccountBase64),
+        });
         return NextResponse.json({ message: 'Google Drive env is missing' }, { status: 500 });
       }
 
@@ -91,6 +113,7 @@ export async function POST(request: Request) {
       try {
         credentials = JSON.parse(Buffer.from(serviceAccountBase64, 'base64').toString('utf-8'));
       } catch (parseError) {
+        console.error('[attachments] failed to parse google service account JSON', parseError);
         return errorResponse(parseError);
       }
 
@@ -118,6 +141,11 @@ export async function POST(request: Request) {
 
       const driveFileId = driveResponse.data.id;
       if (!driveFileId) {
+        console.error('[attachments] drive upload missing file id', {
+          fileName: file.name,
+          entityType: entityTypeEnum,
+          entityId: entityIdValue,
+        });
         return NextResponse.json({ message: 'Failed to upload to Google Drive' }, { status: 500 });
       }
 
@@ -136,12 +164,26 @@ export async function POST(request: Request) {
         },
       });
 
-      return NextResponse.json(attachment, { status: 201 });
+      return NextResponse.json(
+        {
+          ...attachment,
+          url: attachment.driveWebViewLink,
+        },
+        { status: 201 },
+      );
     }
 
     // Vercel Blob
     if (storageProvider !== 'blob') {
+      console.error('[attachments] invalid storage provider', { storageProvider });
       return NextResponse.json({ message: 'Invalid FILE_STORAGE_PROVIDER' }, { status: 500 });
+    }
+
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      console.error('[attachments] missing BLOB_READ_WRITE_TOKEN', {
+        storageProvider,
+      });
+      return NextResponse.json({ message: 'BLOB_READ_WRITE_TOKEN is missing' }, { status: 500 });
     }
 
     // put は Blob SDK。access: 'public' を明示。:contentReference[oaicite:0]{index=0}
@@ -162,8 +204,19 @@ export async function POST(request: Request) {
       },
     });
 
-    return NextResponse.json(attachment, { status: 201 });
+    return NextResponse.json(
+      {
+        ...attachment,
+        url: attachment.blobUrl,
+      },
+      { status: 201 },
+    );
   } catch (error) {
+    console.error('[attachments] upload failed', {
+      error,
+      hasBlobToken: Boolean(process.env.BLOB_READ_WRITE_TOKEN),
+      storageProvider: process.env.FILE_STORAGE_PROVIDER ?? 'blob',
+    });
     return errorResponse(error);
   }
 }

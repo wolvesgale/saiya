@@ -78,6 +78,7 @@ type VenueDailyItem = {
 };
 
 type SectionKey = 'agency' | 'user' | 'intermediary' | 'venue' | 'event' | 'global';
+type TabKey = 'events' | 'venues' | 'agencies' | 'intermediaries' | 'users' | 'reports';
 
 const cashHandlingOptions = [
   { value: 'HOLD', label: '預かり' },
@@ -101,9 +102,16 @@ export default function AdminDashboard() {
     event: null,
     global: null,
   });
+  const [activeTab, setActiveTab] = useState<TabKey>('events');
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [venueFrom, setVenueFrom] = useState<string>('');
   const [venueTo, setVenueTo] = useState<string>('');
+  const [agencyQuery, setAgencyQuery] = useState('');
+  const [agencySort, setAgencySort] = useState<'name-asc' | 'name-desc' | 'created-desc' | 'created-asc'>('name-asc');
+  const [userQuery, setUserQuery] = useState('');
+  const [venueQuery, setVenueQuery] = useState('');
+  const [eventQuery, setEventQuery] = useState('');
+  const [intermediaryQuery, setIntermediaryQuery] = useState('');
 
   const formatDateInput = (date: Date) => date.toISOString().slice(0, 10);
 
@@ -449,6 +457,61 @@ export default function AdminDashboard() {
     return index - startWeekday + 1;
   });
 
+  const filteredAgencies = useMemo(() => {
+    const query = agencyQuery.trim().toLowerCase();
+    const results = agencies.filter((agency) => {
+      if (!query) return true;
+      return [agency.name, agency.email ?? '', agency.shopName ?? ''].some((value) => value.toLowerCase().includes(query));
+    });
+    const sorted = [...results];
+    sorted.sort((a, b) => {
+      switch (agencySort) {
+        case 'name-desc':
+          return b.name.localeCompare(a.name);
+        case 'created-desc':
+          return b.createdAt.localeCompare(a.createdAt);
+        case 'created-asc':
+          return a.createdAt.localeCompare(b.createdAt);
+        case 'name-asc':
+        default:
+          return a.name.localeCompare(b.name);
+      }
+    });
+    return sorted;
+  }, [agencies, agencyQuery, agencySort]);
+
+  const filteredUsers = useMemo(() => {
+    const query = userQuery.trim().toLowerCase();
+    return users.filter((user) => {
+      if (!query) return true;
+      return user.email.toLowerCase().includes(query) || user.role.toLowerCase().includes(query);
+    });
+  }, [users, userQuery]);
+
+  const filteredVenues = useMemo(() => {
+    const query = venueQuery.trim().toLowerCase();
+    return venues.filter((venue) => {
+      if (!query) return true;
+      return [venue.name, venue.address ?? ''].some((value) => value.toLowerCase().includes(query));
+    });
+  }, [venues, venueQuery]);
+
+  const filteredEvents = useMemo(() => {
+    const query = eventQuery.trim().toLowerCase();
+    return events.filter((eventItem) => {
+      if (!query) return true;
+      return [eventItem.title, eventItem.intermediaryName ?? ''].some((value) => value.toLowerCase().includes(query));
+    });
+  }, [events, eventQuery]);
+
+  const filteredIntermediaries = useMemo(() => {
+    const query = intermediaryQuery.trim().toLowerCase();
+    return intermediaries.filter((intermediary) => {
+      if (!query) return true;
+      return [intermediary.name, intermediary.reportFormUrl ?? ''].some((value) => value.toLowerCase().includes(query));
+    });
+  }, [intermediaries, intermediaryQuery]);
+
   const monthlyEvents = events.filter((eventItem) => {
     const start = new Date(eventItem.startDate);
     const end = new Date(eventItem.endDate);
@@ -458,37 +521,90 @@ export default function AdminDashboard() {
   });
 
   const monthStart = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
+  const tabs: { key: TabKey; label: string; description: string }[] = [
+    { key: 'events', label: 'イベント', description: 'スケジュールとカレンダー' },
+    { key: 'venues', label: '会場', description: '会場と添付資料' },
+    { key: 'agencies', label: '代理店', description: '代理店一覧と設定' },
+    { key: 'intermediaries', label: '仲介', description: '仲介業者の管理' },
+    { key: 'users', label: 'ユーザー', description: '管理ユーザー設定' },
+    { key: 'reports', label: '売上レポート', description: '集計と平均' },
+  ];
 
   return (
-    <div className="space-y-10">
-      <div className="flex items-center justify-end">
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap gap-2">
+          {tabs.map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setActiveTab(tab.key)}
+              className={`px-4 py-2 rounded-full text-sm border transition ${
+                activeTab === tab.key
+                  ? 'bg-indigo-500/20 border-indigo-400 text-indigo-100'
+                  : 'bg-slate-900/60 border-slate-800 text-slate-300 hover:text-white'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
         <button className="bg-slate-800 text-slate-200" type="button" onClick={handleLogout}>
           ログアウト
         </button>
       </div>
 
-      <section className="grid lg:grid-cols-2 gap-6">
-        <div className="bg-slate-900/70 border border-slate-800 p-6 rounded-lg">
-          <h2 className="text-lg font-semibold mb-4">代理店管理</h2>
+      <div className="text-xs text-slate-400">
+        {tabs.find((tab) => tab.key === activeTab)?.description ?? ''}
+      </div>
+
+      {activeTab === 'agencies' ? (
+        <section className="bg-slate-900/70 border border-slate-800 p-6 rounded-lg space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold">代理店管理</h2>
+            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
+              <span>
+                {filteredAgencies.length}件 / 全{agencies.length}件
+              </span>
+              <input
+                className="bg-slate-950/40 border border-slate-700 rounded px-3 py-1 text-slate-100"
+                placeholder="代理店検索"
+                value={agencyQuery}
+                onChange={(event) => setAgencyQuery(event.target.value)}
+              />
+              <select
+                className="bg-slate-950/40 border border-slate-700 rounded px-2 py-1 text-slate-100"
+                value={agencySort}
+                onChange={(event) => setAgencySort(event.target.value as typeof agencySort)}
+              >
+                <option value="name-asc">名前昇順</option>
+                <option value="name-desc">名前降順</option>
+                <option value="created-desc">作成日（新しい順）</option>
+                <option value="created-asc">作成日（古い順）</option>
+              </select>
+            </div>
+          </div>
           <Banner section="agency" />
-          <form onSubmit={handleCreateAgency} className="space-y-3">
-            <div>
+          <form onSubmit={handleCreateAgency} className="grid gap-3 md:grid-cols-3">
+            <div className="md:col-span-1">
               <label htmlFor="agency-name">代理店名</label>
               <input id="agency-name" name="name" required />
             </div>
-            <div>
+            <div className="md:col-span-1">
               <label htmlFor="agency-email">メール</label>
               <input id="agency-email" name="email" type="email" required />
             </div>
-            <div>
+            <div className="md:col-span-1">
               <label htmlFor="agency-password">初期パスワード (任意)</label>
               <input id="agency-password" name="password" type="password" placeholder="未入力なら initpass" />
             </div>
-            <button className="bg-indigo-500 text-white">作成</button>
+            <div className="md:col-span-3">
+              <button className="bg-indigo-500 text-white">作成</button>
+            </div>
           </form>
 
-          <ul className="mt-4 space-y-3 text-sm text-slate-300">
-            {agencies.map((agency) => (
+          <ul className="space-y-3 text-sm text-slate-300">
+            {filteredAgencies.map((agency) => (
               <li key={agency.id} className="border border-slate-800 rounded p-3 space-y-2">
                 <div className="font-medium">{agency.name}</div>
                 <div className="text-xs text-slate-400">メール: {agency.email ?? '未登録'}</div>
@@ -518,12 +634,22 @@ export default function AdminDashboard() {
               </li>
             ))}
           </ul>
-        </div>
+        </section>
+      ) : null}
 
-        <div className="bg-slate-900/70 border border-slate-800 p-6 rounded-lg">
-          <h2 className="text-lg font-semibold mb-4">ユーザー管理</h2>
+      {activeTab === 'users' ? (
+        <section className="bg-slate-900/70 border border-slate-800 p-6 rounded-lg space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold">ユーザー管理</h2>
+            <input
+              className="bg-slate-950/40 border border-slate-700 rounded px-3 py-1 text-slate-100 text-xs"
+              placeholder="ユーザー検索"
+              value={userQuery}
+              onChange={(event) => setUserQuery(event.target.value)}
+            />
+          </div>
           <Banner section="user" />
-          <form onSubmit={handleCreateUser} className="space-y-3">
+          <form onSubmit={handleCreateUser} className="grid gap-3 md:grid-cols-3">
             <div>
               <label htmlFor="user-email">メール</label>
               <input id="user-email" name="email" type="email" required />
@@ -539,37 +665,50 @@ export default function AdminDashboard() {
               <label htmlFor="user-agency">代理店ID (任意)</label>
               <input id="user-agency" name="agencyId" placeholder="agency id" />
             </div>
-            <button className="bg-indigo-500 text-white">作成</button>
+            <div className="md:col-span-3">
+              <button className="bg-indigo-500 text-white">作成</button>
+            </div>
           </form>
 
-          <ul className="mt-4 space-y-1 text-sm text-slate-300">
-            {users.map((user) => (
+          <ul className="space-y-1 text-sm text-slate-300">
+            {filteredUsers.map((user) => (
               <li key={user.id}>
                 {user.email} ({user.role})
               </li>
             ))}
+            {!filteredUsers.length ? <li className="text-xs text-slate-500">該当ユーザーがありません。</li> : null}
           </ul>
-        </div>
-      </section>
+        </section>
+      ) : null}
 
-      <section className="grid lg:grid-cols-2 gap-6">
-        <div className="bg-slate-900/70 border border-slate-800 p-6 rounded-lg">
-          <h2 className="text-lg font-semibold mb-4">仲介業者管理</h2>
+      {activeTab === 'intermediaries' ? (
+        <section className="bg-slate-900/70 border border-slate-800 p-6 rounded-lg space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold">仲介業者管理</h2>
+            <input
+              className="bg-slate-950/40 border border-slate-700 rounded px-3 py-1 text-slate-100 text-xs"
+              placeholder="仲介検索"
+              value={intermediaryQuery}
+              onChange={(event) => setIntermediaryQuery(event.target.value)}
+            />
+          </div>
           <Banner section="intermediary" />
-          <form onSubmit={handleCreateIntermediary} className="space-y-3">
+          <form onSubmit={handleCreateIntermediary} className="grid gap-3 md:grid-cols-3">
             <div>
               <label htmlFor="intermediary-name">業者名</label>
               <input id="intermediary-name" name="intermediaryName" required />
             </div>
-            <div>
+            <div className="md:col-span-2">
               <label htmlFor="report-form-url">報告フォームURL (任意)</label>
               <input id="report-form-url" name="reportFormUrl" type="url" placeholder="https://" />
             </div>
-            <button className="bg-indigo-500 text-white">作成</button>
+            <div className="md:col-span-3">
+              <button className="bg-indigo-500 text-white">作成</button>
+            </div>
           </form>
 
-          <ul className="mt-4 space-y-3 text-sm text-slate-200">
-            {intermediaries.map((intermediary) => (
+          <ul className="space-y-3 text-sm text-slate-200">
+            {filteredIntermediaries.map((intermediary) => (
               <li key={intermediary.id} className="space-y-2 border border-slate-800 rounded p-3">
                 <div className="font-medium">{intermediary.name}</div>
                 <div className="text-xs text-slate-400 break-all">
@@ -600,14 +739,25 @@ export default function AdminDashboard() {
                 </form>
               </li>
             ))}
+            {!filteredIntermediaries.length ? <li className="text-xs text-slate-500">該当業者がありません。</li> : null}
           </ul>
-        </div>
+        </section>
+      ) : null}
 
-        <div className="bg-slate-900/70 border border-slate-800 p-6 rounded-lg">
-          <h2 className="text-lg font-semibold mb-4">会場管理</h2>
+      {activeTab === 'venues' ? (
+        <section className="bg-slate-900/70 border border-slate-800 p-6 rounded-lg space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold">会場管理</h2>
+            <input
+              className="bg-slate-950/40 border border-slate-700 rounded px-3 py-1 text-slate-100 text-xs"
+              placeholder="会場検索"
+              value={venueQuery}
+              onChange={(event) => setVenueQuery(event.target.value)}
+            />
+          </div>
           <Banner section="venue" />
 
-          <form onSubmit={handleCreateVenue} className="space-y-3">
+          <form onSubmit={handleCreateVenue} className="grid gap-3 md:grid-cols-2">
             <div>
               <label htmlFor="venue-name">会場名</label>
               <input id="venue-name" name="venueName" required />
@@ -616,12 +766,12 @@ export default function AdminDashboard() {
               <label htmlFor="venue-address">住所</label>
               <input id="venue-address" name="venueAddress" />
             </div>
-            <div>
+            <div className="md:col-span-2">
               <label htmlFor="venue-note">会場メモ</label>
               <textarea id="venue-note" name="note" rows={2} />
             </div>
 
-            <div>
+            <div className="md:col-span-2">
               <label htmlFor="venue-file">資料（アップロード / 任意）</label>
               <input id="venue-file" name="venueFile" type="file" />
               <div className="text-xs text-slate-500 mt-1">※作成後に自動アップロードし、会場に紐づけます</div>
@@ -640,10 +790,6 @@ export default function AdminDashboard() {
             </div>
 
             <div>
-              <label htmlFor="venue-notes">注意事項</label>
-              <textarea id="venue-notes" name="notes" rows={2} />
-            </div>
-            <div>
               <label htmlFor="venue-hours">営業時間</label>
               <input id="venue-hours" name="hours" list="time-options" placeholder="09:00" />
             </div>
@@ -659,11 +805,17 @@ export default function AdminDashboard() {
               <label htmlFor="venue-loadout">搬出時間</label>
               <input id="venue-loadout" name="loadOutTime" list="time-options" placeholder="18:00" />
             </div>
-            <button className="bg-indigo-500 text-white">作成</button>
+            <div className="md:col-span-2">
+              <label htmlFor="venue-notes">注意事項</label>
+              <textarea id="venue-notes" name="notes" rows={2} />
+            </div>
+            <div className="md:col-span-2">
+              <button className="bg-indigo-500 text-white">作成</button>
+            </div>
           </form>
 
-          <ul className="mt-4 space-y-3 text-sm text-slate-300">
-            {venues.map((venue) => (
+          <ul className="space-y-3 text-sm text-slate-300">
+            {filteredVenues.map((venue) => (
               <li key={venue.id} className="border border-slate-800 rounded p-3 space-y-2">
                 <div>
                   {venue.name} (
@@ -700,331 +852,349 @@ export default function AdminDashboard() {
                 </details>
               </li>
             ))}
+            {!filteredVenues.length ? <li className="text-xs text-slate-500">該当会場がありません。</li> : null}
           </ul>
-        </div>
-      </section>
+        </section>
+      ) : null}
 
-      <section className="grid lg:grid-cols-2 gap-6">
-        <div className="bg-slate-900/70 border border-slate-800 p-6 rounded-lg">
-          <h2 className="text-lg font-semibold mb-4">スケジュール/イベント</h2>
-          <Banner section="event" />
-          <form onSubmit={handleCreateEvent} className="space-y-3">
-            <div>
-              <label htmlFor="event-agency">代理店</label>
-              <select id="event-agency" name="eventAgency" required>
-                <option value="">選択してください</option>
-                {agencies.map((agency) => (
-                  <option key={agency.id} value={agency.id}>
-                    {agency.name}
-                  </option>
-                ))}
-              </select>
+      {activeTab === 'events' ? (
+        <section className="grid lg:grid-cols-2 gap-6">
+          <div className="bg-slate-900/70 border border-slate-800 p-6 rounded-lg space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold">スケジュール/イベント</h2>
+              <input
+                className="bg-slate-950/40 border border-slate-700 rounded px-3 py-1 text-slate-100 text-xs"
+                placeholder="イベント検索"
+                value={eventQuery}
+                onChange={(event) => setEventQuery(event.target.value)}
+              />
             </div>
+            <Banner section="event" />
+            <form onSubmit={handleCreateEvent} className="space-y-3">
+              <div>
+                <label htmlFor="event-agency">代理店</label>
+                <select id="event-agency" name="eventAgency" required>
+                  <option value="">選択してください</option>
+                  {agencies.map((agency) => (
+                    <option key={agency.id} value={agency.id}>
+                      {agency.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-            <div>
-              <label htmlFor="event-venue">会場</label>
-              <select id="event-venue" name="eventVenue" required>
-                <option value="">選択してください</option>
-                {venues.map((venue) => (
-                  <option key={venue.id} value={venue.id}>
-                    {venue.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+              <div>
+                <label htmlFor="event-venue">会場</label>
+                <select id="event-venue" name="eventVenue" required>
+                  <option value="">選択してください</option>
+                  {venues.map((venue) => (
+                    <option key={venue.id} value={venue.id}>
+                      {venue.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-            <div>
-              <label htmlFor="event-start">開始日</label>
-              <input id="event-start" name="startDate" type="date" required />
-            </div>
-            <div>
-              <label htmlFor="event-end">終了日</label>
-              <input id="event-end" name="endDate" type="date" required />
-            </div>
-
-            <div>
-              <label htmlFor="event-intermediary">仲介業者</label>
-              <select id="event-intermediary" name="eventIntermediary">
-                <option value="">未設定</option>
-                {intermediaries.map((intermediary) => (
-                  <option key={intermediary.id} value={intermediary.id}>
-                    {intermediary.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label htmlFor="event-cash">売上金預かり</label>
-              <select id="event-cash" name="eventCashHandling">
-                <option value="">会場設定に従う</option>
-                {cashHandlingOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label htmlFor="event-report">報告締切 (HH:mm)</label>
-              <input id="event-report" name="reportDeadline" list="time-options" placeholder="21:00" />
-            </div>
-
-            <button className="bg-indigo-500 text-white">作成</button>
-          </form>
-
-          <ul className="mt-4 space-y-3 text-sm text-slate-300">
-            {events.map((eventItem) => (
-              <li key={eventItem.id} className="border border-slate-800 rounded p-3 space-y-1">
-                <div className="font-medium">{eventItem.title}</div>
-                <div className="text-xs text-slate-400">
-                  {eventItem.startDate}〜{eventItem.endDate}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="event-start">開始日</label>
+                  <input id="event-start" name="startDate" type="date" required />
                 </div>
-                <div className="text-xs text-slate-400">仲介業者: {eventItem.intermediaryName ?? '未設定'}</div>
-                <div className="text-xs text-slate-400">共有メモ: {eventItem.memo ? 'あり' : 'なし'}</div>
-                <a className="text-xs text-indigo-300" href={`/admin/events/${eventItem.id}`}>
-                  編集画面へ
-                </a>
-              </li>
-            ))}
-          </ul>
-        </div>
+                <div>
+                  <label htmlFor="event-end">終了日</label>
+                  <input id="event-end" name="endDate" type="date" required />
+                </div>
+              </div>
 
-        <div className="bg-slate-900/70 border border-slate-800 p-6 rounded-lg space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">イベントカレンダー</h2>
-            <div className="flex items-center gap-2">
+              <div>
+                <label htmlFor="event-intermediary">仲介業者</label>
+                <select id="event-intermediary" name="eventIntermediary">
+                  <option value="">未設定</option>
+                  {intermediaries.map((intermediary) => (
+                    <option key={intermediary.id} value={intermediary.id}>
+                      {intermediary.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="event-cash">売上金預かり</label>
+                <select id="event-cash" name="eventCashHandling">
+                  <option value="">会場設定に従う</option>
+                  {cashHandlingOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="event-report">報告締切 (HH:mm)</label>
+                <input id="event-report" name="reportDeadline" list="time-options" placeholder="21:00" />
+              </div>
+
+              <button className="bg-indigo-500 text-white">作成</button>
+            </form>
+
+            <ul className="space-y-3 text-sm text-slate-300">
+              {filteredEvents.map((eventItem) => (
+                <li key={eventItem.id} className="border border-slate-800 rounded p-3 space-y-1">
+                  <div className="font-medium">{eventItem.title}</div>
+                  <div className="text-xs text-slate-400">
+                    {eventItem.startDate}〜{eventItem.endDate}
+                  </div>
+                  <div className="text-xs text-slate-400">仲介業者: {eventItem.intermediaryName ?? '未設定'}</div>
+                  <div className="text-xs text-slate-400">共有メモ: {eventItem.memo ? 'あり' : 'なし'}</div>
+                  <a className="text-xs text-indigo-300" href={`/admin/events/${eventItem.id}`}>
+                    編集画面へ
+                  </a>
+                </li>
+              ))}
+              {!filteredEvents.length ? <li className="text-xs text-slate-500">該当イベントがありません。</li> : null}
+            </ul>
+          </div>
+
+          <div className="bg-slate-900/70 border border-slate-800 p-6 rounded-lg space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold">イベントカレンダー</h2>
+              <div className="flex items-center gap-2">
+                <button
+                  className="bg-slate-800 text-slate-200"
+                  onClick={() => {
+                    const previous = new Date(currentMonth);
+                    previous.setMonth(previous.getMonth() - 1);
+                    setCurrentMonth(previous);
+                  }}
+                  type="button"
+                >
+                  前月
+                </button>
+                <span className="text-sm text-slate-300">{monthLabel}</span>
+                <button
+                  className="bg-slate-800 text-slate-200"
+                  onClick={() => {
+                    const next = new Date(currentMonth);
+                    next.setMonth(next.getMonth() + 1);
+                    setCurrentMonth(next);
+                  }}
+                  type="button"
+                >
+                  次月
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-7 text-xs text-slate-400">
+              {['日', '月', '火', '水', '木', '金', '土'].map((label) => (
+                <div key={label} className="text-center py-1">
+                  {label}
+                </div>
+              ))}
+              {dayCells.map((day, index) => (
+                <div key={`${day ?? 'blank'}-${index}`} className="min-h-[32px] text-center text-slate-300">
+                  {day ?? ''}
+                </div>
+              ))}
+            </div>
+
+            <div className="space-y-2">
+              {monthlyEvents.map((eventItem) => {
+                const start = new Date(eventItem.startDate);
+                const end = new Date(eventItem.endDate);
+                const startIndex = Math.max(1, start < monthStart ? 1 : start.getDate());
+                const endIndex = Math.min(daysInMonth, end.getDate());
+                return (
+                  <div
+                    key={eventItem.id}
+                    className="grid items-center"
+                    style={{ gridTemplateColumns: `repeat(${daysInMonth}, minmax(0, 1fr))` }}
+                  >
+                    <a
+                      href={`/admin/events/${eventItem.id}`}
+                      className={`${getAgencyColor(eventItem.agencyId)} text-xs text-white rounded px-2 py-1 text-center truncate`}
+                      style={{ gridColumn: `${startIndex} / ${endIndex + 1}` }}
+                    >
+                      {eventItem.title}
+                    </a>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      {activeTab === 'reports' ? (
+        <div className="space-y-6">
+          <section className="bg-slate-900/70 border border-slate-800 p-6 rounded-lg">
+            <h2 className="text-lg font-semibold mb-4">売上集計</h2>
+            <div className="text-sm text-slate-400 mb-2">平均売上は「当月の売上合計 / 売上入力件数」で算出しています。</div>
+            <div className="text-sm text-slate-300 mb-4">総合平均売上: {summary?.overallAverage?.toLocaleString() ?? '0'}</div>
+
+            <div className="flex items-center gap-2 mb-4">
               <button
                 className="bg-slate-800 text-slate-200"
+                type="button"
                 onClick={() => {
                   const previous = new Date(currentMonth);
                   previous.setMonth(previous.getMonth() - 1);
                   setCurrentMonth(previous);
                 }}
-                type="button"
               >
                 前月
               </button>
               <span className="text-sm text-slate-300">{monthLabel}</span>
               <button
                 className="bg-slate-800 text-slate-200"
+                type="button"
                 onClick={() => {
                   const next = new Date(currentMonth);
                   next.setMonth(next.getMonth() + 1);
                   setCurrentMonth(next);
                 }}
-                type="button"
               >
                 次月
               </button>
             </div>
-          </div>
 
-          <div className="grid grid-cols-7 text-xs text-slate-400">
-            {['日', '月', '火', '水', '木', '金', '土'].map((label) => (
-              <div key={label} className="text-center py-1">
-                {label}
-              </div>
-            ))}
-            {dayCells.map((day, index) => (
-              <div key={`${day ?? 'blank'}-${index}`} className="min-h-[32px] text-center text-slate-300">
-                {day ?? ''}
-              </div>
-            ))}
-          </div>
-
-          <div className="space-y-2">
-            {monthlyEvents.map((eventItem) => {
-              const start = new Date(eventItem.startDate);
-              const end = new Date(eventItem.endDate);
-              const startIndex = Math.max(1, start < monthStart ? 1 : start.getDate());
-              const endIndex = Math.min(daysInMonth, end.getDate());
-              return (
-                <div
-                  key={eventItem.id}
-                  className="grid items-center"
-                  style={{ gridTemplateColumns: `repeat(${daysInMonth}, minmax(0, 1fr))` }}
-                >
-                  <a
-                    href={`/admin/events/${eventItem.id}`}
-                    className={`${getAgencyColor(eventItem.agencyId)} text-xs text-white rounded px-2 py-1 text-center truncate`}
-                    style={{ gridColumn: `${startIndex} / ${endIndex + 1}` }}
-                  >
-                    {eventItem.title}
-                  </a>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      <section className="bg-slate-900/70 border border-slate-800 p-6 rounded-lg">
-        <h2 className="text-lg font-semibold mb-4">売上集計</h2>
-        <div className="text-sm text-slate-400 mb-2">平均売上は「当月の売上合計 / 売上入力件数」で算出しています。</div>
-        <div className="text-sm text-slate-300 mb-4">総合平均売上: {summary?.overallAverage?.toLocaleString() ?? '0'}</div>
-
-        <div className="flex items-center gap-2 mb-4">
-          <button
-            className="bg-slate-800 text-slate-200"
-            type="button"
-            onClick={() => {
-              const previous = new Date(currentMonth);
-              previous.setMonth(previous.getMonth() - 1);
-              setCurrentMonth(previous);
-            }}
-          >
-            前月
-          </button>
-          <span className="text-sm text-slate-300">{monthLabel}</span>
-          <button
-            className="bg-slate-800 text-slate-200"
-            type="button"
-            onClick={() => {
-              const next = new Date(currentMonth);
-              next.setMonth(next.getMonth() + 1);
-              setCurrentMonth(next);
-            }}
-          >
-            次月
-          </button>
-        </div>
-
-        <div className="overflow-auto">
-          <table className="w-full text-sm text-slate-300">
-            <thead>
-              <tr className="text-left text-slate-400">
-                <th className="py-2">代理店名</th>
-                <th className="py-2">月間合計売上</th>
-                <th className="py-2">平均売上 (会場別)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {agencies.map((agency) => {
-                const total = summary?.agencyTotals?.[agency.id] ?? 0;
-                return (
-                  <tr key={agency.id} className="border-t border-slate-800">
-                    <td className="py-2">{agency.name}</td>
-                    <td className="py-2">{total.toLocaleString()}</td>
-                    <td className="py-2">
-                      {venues.map((venue) => {
-                        const average = summary?.venueAverages?.[venue.id];
-                        return average !== undefined ? (
-                          <div key={venue.id} className="text-xs text-slate-400">
-                            {venue.name}: {average.toLocaleString()}
-                          </div>
-                        ) : null;
-                      })}
-                    </td>
+            <div className="overflow-auto">
+              <table className="w-full text-sm text-slate-300">
+                <thead>
+                  <tr className="text-left text-slate-400">
+                    <th className="py-2">代理店名</th>
+                    <th className="py-2">月間合計売上</th>
+                    <th className="py-2">平均売上 (会場別)</th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </section>
+                </thead>
+                <tbody>
+                  {agencies.map((agency) => {
+                    const total = summary?.agencyTotals?.[agency.id] ?? 0;
+                    return (
+                      <tr key={agency.id} className="border-t border-slate-800">
+                        <td className="py-2">{agency.name}</td>
+                        <td className="py-2">{total.toLocaleString()}</td>
+                        <td className="py-2">
+                          {venues.map((venue) => {
+                            const average = summary?.venueAverages?.[venue.id];
+                            return average !== undefined ? (
+                              <div key={venue.id} className="text-xs text-slate-400">
+                                {venue.name}: {average.toLocaleString()}
+                              </div>
+                            ) : null;
+                          })}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </section>
 
-      <section className="bg-slate-900/70 border border-slate-800 p-6 rounded-lg">
-        <h2 className="text-lg font-semibold mb-4">代理店別 週次売上（当月）</h2>
-        <div className="overflow-auto">
-          <table className="w-full text-sm text-slate-300">
-            <thead>
-              <tr className="text-left text-slate-400">
-                <th className="py-2">代理店</th>
-                <th className="py-2">1週目</th>
-                <th className="py-2">2週目</th>
-                <th className="py-2">3週目</th>
-                <th className="py-2">4週目</th>
-                <th className="py-2">5週目</th>
-                <th className="py-2">合計</th>
-                <th className="py-2">前月合計</th>
-              </tr>
-            </thead>
-            <tbody>
-              {weeklySummary.map((item) => (
-                <tr key={item.agencyId} className="border-t border-slate-800">
-                  <td className="py-2">{item.agencyName}</td>
-                  <td className="py-2">{item.week1.toLocaleString()}</td>
-                  <td className="py-2">{item.week2.toLocaleString()}</td>
-                  <td className="py-2">{item.week3.toLocaleString()}</td>
-                  <td className="py-2">{item.week4.toLocaleString()}</td>
-                  <td className="py-2">{item.week5.toLocaleString()}</td>
-                  <td className="py-2">{item.total.toLocaleString()}</td>
-                  <td className="py-2">{item.prevMonthTotal.toLocaleString()}</td>
-                </tr>
-              ))}
-              {!weeklySummary.length ? (
-                <tr className="border-t border-slate-800">
-                  <td className="py-2 text-slate-400" colSpan={8}>
-                    売上データがありません。
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
-      </section>
+          <section className="bg-slate-900/70 border border-slate-800 p-6 rounded-lg">
+            <h2 className="text-lg font-semibold mb-4">代理店別 週次売上（当月）</h2>
+            <div className="overflow-auto">
+              <table className="w-full text-sm text-slate-300">
+                <thead>
+                  <tr className="text-left text-slate-400">
+                    <th className="py-2">代理店</th>
+                    <th className="py-2">1週目</th>
+                    <th className="py-2">2週目</th>
+                    <th className="py-2">3週目</th>
+                    <th className="py-2">4週目</th>
+                    <th className="py-2">5週目</th>
+                    <th className="py-2">合計</th>
+                    <th className="py-2">前月合計</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {weeklySummary.map((item) => (
+                    <tr key={item.agencyId} className="border-t border-slate-800">
+                      <td className="py-2">{item.agencyName}</td>
+                      <td className="py-2">{item.week1.toLocaleString()}</td>
+                      <td className="py-2">{item.week2.toLocaleString()}</td>
+                      <td className="py-2">{item.week3.toLocaleString()}</td>
+                      <td className="py-2">{item.week4.toLocaleString()}</td>
+                      <td className="py-2">{item.week5.toLocaleString()}</td>
+                      <td className="py-2">{item.total.toLocaleString()}</td>
+                      <td className="py-2">{item.prevMonthTotal.toLocaleString()}</td>
+                    </tr>
+                  ))}
+                  {!weeklySummary.length ? (
+                    <tr className="border-t border-slate-800">
+                      <td className="py-2 text-slate-400" colSpan={8}>
+                        売上データがありません。
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </section>
 
-      <section className="bg-slate-900/70 border border-slate-800 p-6 rounded-lg">
-        <h2 className="text-lg font-semibold mb-4">会場別 日次平均売上</h2>
-        <div className="flex flex-wrap items-end gap-3 mb-4 text-sm text-slate-300">
-          <label className="flex flex-col gap-1">
-            期間（開始）
-            <input
-              className="bg-slate-950/40 border border-slate-700 rounded px-3 py-2 text-slate-100"
-              type="date"
-              value={venueFrom}
-              onChange={(event) => setVenueFrom(event.target.value)}
-            />
-          </label>
-          <label className="flex flex-col gap-1">
-            期間（終了）
-            <input
-              className="bg-slate-950/40 border border-slate-700 rounded px-3 py-2 text-slate-100"
-              type="date"
-              value={venueTo}
-              onChange={(event) => setVenueTo(event.target.value)}
-            />
-          </label>
-          <button
-            className="bg-slate-800 text-slate-200 px-4 py-2 rounded"
-            type="button"
-            onClick={() => refreshVenueDailySummary(venueFrom, venueTo)}
-          >
-            更新
-          </button>
+          <section className="bg-slate-900/70 border border-slate-800 p-6 rounded-lg">
+            <h2 className="text-lg font-semibold mb-4">会場別 日次平均売上</h2>
+            <div className="flex flex-wrap items-end gap-3 mb-4 text-sm text-slate-300">
+              <label className="flex flex-col gap-1">
+                期間（開始）
+                <input
+                  className="bg-slate-950/40 border border-slate-700 rounded px-3 py-2 text-slate-100"
+                  type="date"
+                  value={venueFrom}
+                  onChange={(event) => setVenueFrom(event.target.value)}
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                期間（終了）
+                <input
+                  className="bg-slate-950/40 border border-slate-700 rounded px-3 py-2 text-slate-100"
+                  type="date"
+                  value={venueTo}
+                  onChange={(event) => setVenueTo(event.target.value)}
+                />
+              </label>
+              <button
+                className="bg-slate-800 text-slate-200 px-4 py-2 rounded"
+                type="button"
+                onClick={() => refreshVenueDailySummary(venueFrom, venueTo)}
+              >
+                更新
+              </button>
+            </div>
+            <div className="overflow-auto">
+              <table className="w-full text-sm text-slate-300">
+                <thead>
+                  <tr className="text-left text-slate-400">
+                    <th className="py-2">会場</th>
+                    <th className="py-2">合計</th>
+                    <th className="py-2">件数</th>
+                    <th className="py-2">日次平均</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {venueDailySummary.map((item) => (
+                    <tr key={item.venueId} className="border-t border-slate-800">
+                      <td className="py-2">{item.venueName}</td>
+                      <td className="py-2">{item.total.toLocaleString()}</td>
+                      <td className="py-2">{item.count.toLocaleString()}</td>
+                      <td className="py-2">{item.average.toLocaleString()}</td>
+                    </tr>
+                  ))}
+                  {!venueDailySummary.length ? (
+                    <tr className="border-t border-slate-800">
+                      <td className="py-2 text-slate-400" colSpan={4}>
+                        期間内の売上がありません。
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </section>
         </div>
-        <div className="overflow-auto">
-          <table className="w-full text-sm text-slate-300">
-            <thead>
-              <tr className="text-left text-slate-400">
-                <th className="py-2">会場</th>
-                <th className="py-2">合計</th>
-                <th className="py-2">件数</th>
-                <th className="py-2">日次平均</th>
-              </tr>
-            </thead>
-            <tbody>
-              {venueDailySummary.map((item) => (
-                <tr key={item.venueId} className="border-t border-slate-800">
-                  <td className="py-2">{item.venueName}</td>
-                  <td className="py-2">{item.total.toLocaleString()}</td>
-                  <td className="py-2">{item.count.toLocaleString()}</td>
-                  <td className="py-2">{item.average.toLocaleString()}</td>
-                </tr>
-              ))}
-              {!venueDailySummary.length ? (
-                <tr className="border-t border-slate-800">
-                  <td className="py-2 text-slate-400" colSpan={4}>
-                    期間内の売上がありません。
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
-      </section>
+      ) : null}
 
       <datalist id="time-options">
         {timeOptions.map((option) => (

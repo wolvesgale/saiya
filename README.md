@@ -35,10 +35,17 @@ npm run dev
 - `BLOB_READ_WRITE_TOKEN` : Vercel BlobのRWトークン（`FILE_STORAGE_PROVIDER=blob` の場合）
 
 ### Google Sheets（売上連携）
-- `GOOGLE_SHEETS_ID` : `1BcUh6QbeJoSxCdSfbabvTi1dlJ05ifVJ`
-- `GOOGLE_SERVICE_ACCOUNT_JSON` : サービスアカウントJSONをBase64化した文字列
+- `GOOGLE_SHEETS_SPREADSHEET_ID` : `1BcUh6QbeJoSxCdSfbabvTi1dlJ05ifVJ`
+- `GOOGLE_SHEETS_SHEET_NAME` : `シート2`（シート名）
+- `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64` : サービスアカウントJSONをBase64化した文字列
 - `GOOGLE_SHEETS_SCOPE` : `https://www.googleapis.com/auth/spreadsheets`（任意）
-- `SHEET_MONTHLY_SALES_NAME` : `2025年度 XRule 月間売上報告(1月)` など、対象月のシート名
+
+#### サービスアカウント鍵（SECRET KEY）の発行手順
+1. Google Cloud Console → **IAM と管理** → **サービス アカウント** を開く
+2. 対象サービスアカウントを選択し、**鍵** タブで「**鍵を追加**」→「**新しい鍵を作成**」→ JSON
+3. 取得した JSON を base64 化して `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64` に設定する
+   - 例: `base64 -i service-account.json | tr -d '\n'`
+4. 既存キーを使わない場合は古いキーを削除してローテーションする
 
 ### Google Driveを使う場合のみ
 - `GOOGLE_DRIVE_FOLDER_ID` : 共有フォルダID（例: `1IIgvvF-IC2cgVXh1YgGCVqqpZnPfbpN1`）
@@ -118,9 +125,9 @@ npx prisma migrate resolve --applied 20260202001000_seed_xrule_tenant
      - `DIRECT_URL`（Supabase non-pooling / direct 接続文字列）
      - `FILE_STORAGE_PROVIDER`（`blob` or `gdrive`）
      - `BLOB_READ_WRITE_TOKEN`（`FILE_STORAGE_PROVIDER=blob` の場合）
-     - `GOOGLE_SHEETS_ID`
-     - `GOOGLE_SERVICE_ACCOUNT_JSON`
-     - `SHEET_MONTHLY_SALES_NAME`
+     - `GOOGLE_SHEETS_SPREADSHEET_ID`
+     - `GOOGLE_SHEETS_SHEET_NAME`
+     - `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64`
      - `GOOGLE_DRIVE_FOLDER_ID`（`FILE_STORAGE_PROVIDER=gdrive` の場合）
      - `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64`（`FILE_STORAGE_PROVIDER=gdrive` の場合）
      - `EMAIL_PROVIDER=ses`
@@ -203,11 +210,11 @@ Hobbyプランは1日1回までの制限があるため日次で実行します�
 
 ## Google Sheets 連携設定
 1. Google Cloudで **Service Account** を作成し、スプレッドシートAPIを有効化
-2. サービスアカウントのキーJSONを発行し、Base64化して `GOOGLE_SERVICE_ACCOUNT_JSON` に設定
+2. サービスアカウントのキーJSONを発行し、Base64化して `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64` に設定
    - 例: `base64 -i service-account.json | tr -d '\n'`
 3. 対象スプレッドシートにサービスアカウントのメールを **編集者** で共有
-4. `GOOGLE_SHEETS_ID` にスプレッドシートIDを設定
-5. 対象月のシート名を `SHEET_MONTHLY_SALES_NAME` に設定（例: `2025年度 XRule 月間売上報告(1月)`）
+4. `GOOGLE_SHEETS_SPREADSHEET_ID` にスプレッドシートIDを設定
+5. `GOOGLE_SHEETS_SHEET_NAME` に対象シート名を設定（例: `シート2`）
 6. セルマッピングは `lib/googleSheets.ts` の `SHEET_BLOCKS` で集約管理しています（J4/P4/J14/P14 ブロックを基準に書き込み）。
 
 ## Prisma反映手順
