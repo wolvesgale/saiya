@@ -1,8 +1,11 @@
 // app/api/sales/route.ts
 import { NextResponse } from 'next/server';
+import crypto from 'crypto';
 import { getPrisma } from '@/lib/db';
 import { requireSession, requireRoles, errorResponse } from '@/lib/api';
 import { appendDailySales } from '@/lib/googleSheets';
+import { hashPassword } from '@/lib/auth';
+import { UserRole } from '@prisma/client';
 
 export const runtime = 'nodejs';
 
@@ -63,10 +66,13 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const prisma = getPrisma();
+  let payload: any = null;
+  let sessionUserId: string | null = null;
   try {
     const { user, response } = await requireSession(request);
     if (response) return response;
     if (!user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+    sessionUserId = user.id;
 
     const roleResponse = requireRoles(user.role, ['SUPER_ADMIN', 'ADMIN', 'AGENT']);
     if (roleResponse) return roleResponse;
@@ -76,15 +82,15 @@ export async function POST(request: Request) {
     console.log('[sales POST] user.id:', user.id);
     console.log('[sales POST] user keys:', Object.keys(user as any));
 
-    const createdByUserId = user.id;
-    if (!createdByUserId) {
+    const authUserId = user.id;
+    if (!authUserId) {
       return NextResponse.json(
-        { message: 'Session user id missing (createdByUserId required)' },
+        { message: 'Session user id missing (authUserId required)' },
         { status: 500 },
       );
     }
 
-    const payload = await request.json();
+    payload = await request.json();
 
     const eventId = toStringOrEmpty(payload?.eventId);
     if (!eventId) {
@@ -121,6 +127,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: 'Event agency required for sales' }, { status: 400 });
     }
 
+    const tenantIdForUser = user.tenantId ?? event.tenantId;
+    if (!tenantIdForUser) {
+      return NextResponse.json({ message: 'Tenant required for user mapping' }, { status: 400 });
+    }
+
+    const [tenant, sessionAgency] = await Promise.all([
+      prisma.tenant.findUnique({ where: { id: tenantIdForUser } }),
+      user.agencyId ? prisma.agency.findUnique({ where: { id: user.agencyId } }) : Promise.resolve(null),
+    ]);
+
+    if (!tenant) {
+      return NextResponse.json({ message: 'Invalid tenantId for session user' }, { status: 403 });
+    }
+    if (user.agencyId && !sessionAgency) {
+      return NextResponse.json({ message: 'Invalid agencyId for session user' }, { status: 403 });
+    }
+
     const existing = await prisma.sale.findUnique({
       where: { eventId_date: { eventId: event.id, date } },
     });
@@ -146,6 +169,35 @@ export async function POST(request: Request) {
         ? undefined
         : String(memoAppendOnlyRaw);
 
+    const normalizedRole = (Object.values(UserRole) as string[]).includes(user.role)
+      ? (user.role as UserRole)
+      : null;
+    if (!normalizedRole) {
+      return NextResponse.json({ message: 'Invalid role for session user' }, { status: 400 });
+    }
+
+    const createdByUser = await prisma.user.upsert({
+      where: { authUserId },
+      update: {
+        email: user.email,
+        role: normalizedRole,
+        tenantId: tenantIdForUser,
+        agencyId: user.agencyId,
+        isActive: true,
+      },
+      create: {
+        id: crypto.randomUUID(),
+        authUserId,
+        email: user.email,
+        passwordHash: await hashPassword(crypto.randomUUID()),
+        role: normalizedRole,
+        tenantId: tenantIdForUser,
+        agencyId: user.agencyId,
+        isActive: true,
+        mustChangePassword: false,
+      },
+    });
+
     const sale = await prisma.sale.create({
       data: {
         tenantId: event.tenantId,
@@ -154,7 +206,7 @@ export async function POST(request: Request) {
         date,
         amount,
 
-        createdByUserId,
+        createdByUserId: createdByUser.id,
         partyType,
         commissionType,
         commissionValue,
@@ -177,6 +229,11 @@ export async function POST(request: Request) {
 
     return NextResponse.json(sale, { status: 201 });
   } catch (error) {
+    console.error('[sales POST] error', {
+      routeVersion: '2026-02-02-d',
+      userId: sessionUserId,
+      input: payload,
+    });
     return errorResponse(error);
   }
 }
