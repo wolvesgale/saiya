@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { NextResponse } from 'next/server';
 import { getPrisma } from '@/lib/db';
 import { requireSession, requireRoles, errorResponse } from '@/lib/api';
@@ -59,8 +60,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: 'Tenant required' }, { status: 400 });
     }
 
+    const newUserId = crypto.randomUUID();
     const created = await prisma.user.create({
       data: {
+        id: newUserId,
+        authUserId: newUserId,
         email: payload.email,
         passwordHash,
         role: payload.role,

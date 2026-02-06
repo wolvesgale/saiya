@@ -205,6 +205,12 @@ Hobbyプランは1日1回までの制限があるため日次で実行します�
 - 売上入力がGoogle Sheetsに連携される
 - 添付がアップロードでき、Agentは削除できない
 
+## 売上登録の検証（手動）
+1. 認証ユーザーが `User` テーブルに存在しない状態で `POST /api/sales` を実行し、成功すること
+   - 例: `authUserId` が未登録の認証ユーザーでログイン → 売上登録
+2. 既存ユーザーでも `POST /api/sales` が成功すること
+3. `tenantId` / `agencyId` が不正なセッションでは 403/400 で明示エラーになること
+
 ## 代理店管理（Agency）
 - 代理店の追加項目: `email`, `shopName`, `password`（未指定の場合は `initpass`）
 - Adminのみ作成/編集可能

@@ -186,8 +186,21 @@ export async function getSessionUserFromToken(token: string): Promise<SessionUse
     };
   }
 
-  const user = await prisma.user.findUnique({ where: { id } });
-  if (!user || !user.isActive) return null;
+  const user =
+    (await prisma.user.findUnique({ where: { id } })) ??
+    (await prisma.user.findUnique({ where: { authUserId: id } }));
+  if (!user || !user.isActive) {
+    return {
+      principalType: 'USER',
+      id,
+      email,
+      role,
+      tenantId,
+      agencyId,
+      mustChangePassword,
+      isActive: true,
+    };
+  }
 
   return {
     principalType: 'USER',

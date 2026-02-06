@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { PrismaClient, UserRole } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
@@ -15,24 +16,35 @@ async function main() {
 
   const passwordHash = await bcrypt.hash('initpass', 10);
 
-  await prisma.user.upsert({
-    where: { email: 'wolvesgale0512@gmail.com' },
-    update: {
-      passwordHash,
-      role: UserRole.SUPER_ADMIN,
-      isActive: true,
-      mustChangePassword: false,
-      tenantId: null,
-    },
-    create: {
-      email: 'wolvesgale0512@gmail.com',
-      passwordHash,
-      role: UserRole.SUPER_ADMIN,
-      isActive: true,
-      mustChangePassword: false,
-      tenantId: null,
-    },
-  });
+  const adminEmail = 'wolvesgale0512@gmail.com';
+  const existingAdmin = await prisma.user.findUnique({ where: { email: adminEmail } });
+  if (existingAdmin) {
+    await prisma.user.update({
+      where: { id: existingAdmin.id },
+      data: {
+        passwordHash,
+        role: UserRole.SUPER_ADMIN,
+        isActive: true,
+        mustChangePassword: false,
+        tenantId: null,
+        authUserId: existingAdmin.authUserId ?? existingAdmin.id,
+      },
+    });
+  } else {
+    const newUserId = crypto.randomUUID();
+    await prisma.user.create({
+      data: {
+        id: newUserId,
+        authUserId: newUserId,
+        email: adminEmail,
+        passwordHash,
+        role: UserRole.SUPER_ADMIN,
+        isActive: true,
+        mustChangePassword: false,
+        tenantId: null,
+      },
+    });
+  }
 
   console.info('Seeded tenant:', tenant.name);
 }
