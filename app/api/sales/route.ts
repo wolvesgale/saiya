@@ -176,27 +176,69 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: 'Invalid role for session user' }, { status: 400 });
     }
 
-    const createdByUser = await prisma.user.upsert({
+    const existingByAuthUserId = await prisma.user.findUnique({
       where: { authUserId },
-      update: {
-        email: user.email,
-        role: normalizedRole,
-        tenantId: tenantIdForUser,
-        agencyId: user.agencyId,
-        isActive: true,
-      },
-      create: {
-        id: crypto.randomUUID(),
-        authUserId,
-        email: user.email,
-        passwordHash: await hashPassword(crypto.randomUUID()),
-        role: normalizedRole,
-        tenantId: tenantIdForUser,
-        agencyId: user.agencyId,
-        isActive: true,
-        mustChangePassword: false,
-      },
     });
+
+    let createdByUser = existingByAuthUserId
+      ? await prisma.user.update({
+          where: { id: existingByAuthUserId.id },
+          data: {
+            email: user.email,
+            role: normalizedRole,
+            tenantId: tenantIdForUser,
+            agencyId: user.agencyId,
+            isActive: true,
+          },
+        })
+      : null;
+
+    if (!createdByUser) {
+      const existingByEmail = await prisma.user.findUnique({
+        where: { email: user.email },
+      });
+
+      if (existingByEmail) {
+        if (existingByEmail.authUserId && existingByEmail.authUserId !== authUserId) {
+          return NextResponse.json(
+            { message: 'Email already linked to another user' },
+            { status: 403 },
+          );
+        }
+        if (existingByEmail.tenantId && existingByEmail.tenantId !== tenantIdForUser) {
+          return NextResponse.json(
+            { message: 'Email belongs to another tenant' },
+            { status: 403 },
+          );
+        }
+
+        createdByUser = await prisma.user.update({
+          where: { id: existingByEmail.id },
+          data: {
+            authUserId,
+            email: user.email,
+            role: normalizedRole,
+            tenantId: existingByEmail.tenantId ?? tenantIdForUser,
+            agencyId: user.agencyId,
+            isActive: true,
+          },
+        });
+      } else {
+        createdByUser = await prisma.user.create({
+          data: {
+            id: crypto.randomUUID(),
+            authUserId,
+            email: user.email,
+            passwordHash: await hashPassword(crypto.randomUUID()),
+            role: normalizedRole,
+            tenantId: tenantIdForUser,
+            agencyId: user.agencyId,
+            isActive: true,
+            mustChangePassword: false,
+          },
+        });
+      }
+    }
 
     const sale = await prisma.sale.create({
       data: {

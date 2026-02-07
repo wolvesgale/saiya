@@ -59,7 +59,7 @@ model Tenant {
 
 model User {
   id                 String   @id @default(uuid())
-  authUserId         String   @unique
+  authUserId         String?  @unique
   tenantId           String?
   agencyId           String?
   email              String   @unique
