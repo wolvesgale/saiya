@@ -205,7 +205,7 @@ export async function syncSalesToSheets(payload: SyncSalesPayload) {
     const existingTitles = new Set(
       (spreadsheet.data.sheets ?? [])
         .map((sheet: sheets_v4.Schema$Sheet) => sheet.properties?.title ?? null)
-        .filter((title): title is string => Boolean(title)),
+        .filter((title: string | null): title is string => Boolean(title)),
     );
 
     const requests = [];
