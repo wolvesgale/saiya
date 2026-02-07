@@ -1,3 +1,5 @@
+import type { sheets_v4 } from 'googleapis';
+
 function getServiceAccount() {
   const encoded = process.env.GOOGLE_SERVICE_ACCOUNT_JSON_BASE64;
   if (!encoded) return null;
@@ -201,7 +203,9 @@ export async function syncSalesToSheets(payload: SyncSalesPayload) {
       fields: 'sheets.properties.title',
     });
     const existingTitles = new Set(
-      (spreadsheet.data.sheets ?? []).map((sheet) => sheet.properties?.title).filter(Boolean),
+      (spreadsheet.data.sheets ?? [])
+        .map((sheet: sheets_v4.Schema$Sheet) => sheet.properties?.title ?? null)
+        .filter((title): title is string => Boolean(title)),
     );
 
     const requests = [];
