@@ -170,13 +170,24 @@ type SyncSalesPayload = {
   syncedAt: string;
 };
 
-export async function syncSalesToSheets(payload: SyncSalesPayload) {
+type SyncSalesResult = {
+  spreadsheetTitle?: string;
+  sheetCount?: number;
+};
+
+function maskSpreadsheetId(value: string | undefined) {
+  if (!value) return 'unset';
+  if (value.length <= 8) return value;
+  return `${value.slice(0, 4)}...${value.slice(-4)}`;
+}
+
+export async function syncSalesToSheets(payload: SyncSalesPayload): Promise<SyncSalesResult> {
   let googleApis: any;
   try {
     googleApis = await import('googleapis');
   } catch (error) {
     console.warn('[googleSheets] googleapis not available', error);
-    return;
+    throw error;
   }
 
   const { google } = googleApis;
@@ -187,7 +198,7 @@ export async function syncSalesToSheets(payload: SyncSalesPayload) {
 
   if (!spreadsheetId || !sheetName || !serviceAccount) {
     console.warn('[googleSheets] missing environment configuration');
-    return;
+    throw new Error('Missing Google Sheets environment configuration');
   }
 
   try {
@@ -196,17 +207,34 @@ export async function syncSalesToSheets(payload: SyncSalesPayload) {
       key: serviceAccount.private_key,
       scopes: [scope],
     });
+    console.info('[googleSheets] step auth_initialized', {
+      spreadsheetId: maskSpreadsheetId(spreadsheetId),
+      sheetName,
+    });
     const sheets = google.sheets({ version: 'v4', auth });
 
+    console.info('[googleSheets] step spreadsheets_get_start');
     const spreadsheet = await sheets.spreadsheets.get({
       spreadsheetId,
-      fields: 'sheets.properties.title',
+      fields: 'properties.title,sheets.properties.title',
     });
+    const spreadsheetTitle = spreadsheet.data.properties?.title ?? '';
+    const sheetCount = spreadsheet.data.sheets?.length ?? 0;
+    console.info('[googleSheets] step spreadsheets_get_ok', {
+      spreadsheetTitle,
+      sheetCount,
+    });
+
     const existingTitles = new Set(
       (spreadsheet.data.sheets ?? [])
         .map((sheet: sheets_v4.Schema$Sheet) => sheet.properties?.title ?? null)
         .filter((title: string | null): title is string => Boolean(title)),
     );
+    console.info('[googleSheets] step existingTitles', {
+      hasSalesRaw: existingTitles.has(SALES_RAW_SHEET_NAME),
+      hasDashboardSheet: existingTitles.has(sheetName),
+      dashboardSheetName: sheetName,
+    });
 
     const requests = [];
     if (!existingTitles.has(SALES_RAW_SHEET_NAME)) {
@@ -216,9 +244,16 @@ export async function syncSalesToSheets(payload: SyncSalesPayload) {
       requests.push({ addSheet: { properties: { title: sheetName } } });
     }
     if (requests.length > 0) {
-      await sheets.spreadsheets.batchUpdate({
+      const createResponse = await sheets.spreadsheets.batchUpdate({
         spreadsheetId,
         requestBody: { requests },
+      });
+      const createdSheets = (createResponse.data.replies ?? [])
+        .map((reply) => reply.addSheet?.properties)
+        .filter(Boolean)
+        .map((props) => ({ title: props?.title ?? 'unknown', sheetId: props?.sheetId }));
+      console.info('[googleSheets] step create_sheet_requests_sent', {
+        createdSheets,
       });
     }
 
@@ -230,6 +265,7 @@ export async function syncSalesToSheets(payload: SyncSalesPayload) {
         values: [['date', 'venueName', 'agencyName', 'amount', 'createdAt', 'saleId', 'tenantId', 'eventId']],
       },
     });
+    console.info('[googleSheets] step salesraw_header_written');
 
     await sheets.spreadsheets.values.batchClear({
       spreadsheetId,
@@ -237,6 +273,7 @@ export async function syncSalesToSheets(payload: SyncSalesPayload) {
         ranges: [`${SALES_RAW_SHEET_NAME}!A2:H`],
       },
     });
+    console.info('[googleSheets] step salesraw_cleared');
 
     if (payload.records.length > 0) {
       const values = payload.records.map((record) => [
@@ -256,6 +293,7 @@ export async function syncSalesToSheets(payload: SyncSalesPayload) {
         requestBody: { values },
       });
     }
+    console.info('[googleSheets] step salesraw_rows_written', { rows: payload.records.length });
 
     const agencyMonthlyQuery = `=QUERY(SalesRaw!A:D,"select C, sum(D), avg(D) where A >= date '"&TEXT(EOMONTH(TODAY(),-1)+1,"yyyy-mm-dd")&"' and A <= date '"&TEXT(EOMONTH(TODAY(),0),"yyyy-mm-dd")&"' group by C label C '代理店', sum(D) '当月累計', avg(D) '平均(当月)'", 1)`;
     const venueDailyAverageQuery = `=QUERY(SalesRaw!A:D,"select A, B, avg(D) where A is not null group by A, B order by A desc label A '日付', B '会場', avg(D) '日次平均'", 1)`;
@@ -306,7 +344,12 @@ export async function syncSalesToSheets(payload: SyncSalesPayload) {
         data: dashboardUpdates,
       },
     });
+    console.info('[googleSheets] step dashboard_written');
+    console.info('[googleSheets] step syncedAt_written', { syncedAt: payload.syncedAt });
+
+    return { spreadsheetTitle, sheetCount };
   } catch (error) {
     console.warn('[googleSheets] syncSalesToSheets failed', error);
+    throw error;
   }
 }
