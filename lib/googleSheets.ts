@@ -255,7 +255,10 @@ export async function syncSalesToSheets(payload: SyncSalesPayload): Promise<Sync
             props: sheets_v4.Schema$SheetProperties | null,
           ): props is sheets_v4.Schema$SheetProperties => Boolean(props),
         )
-        .map((props) => ({ title: props.title ?? 'unknown', sheetId: props.sheetId ?? -1 }));
+        .map((props: sheets_v4.Schema$SheetProperties) => ({
+          title: props.title ?? 'unknown',
+          sheetId: props.sheetId ?? -1,
+        }));
       console.info('[googleSheets] step create_sheet_requests_sent', {
         createdSheets,
       });
