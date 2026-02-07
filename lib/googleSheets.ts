@@ -249,9 +249,9 @@ export async function syncSalesToSheets(payload: SyncSalesPayload): Promise<Sync
         requestBody: { requests },
       });
       const createdSheets = (createResponse.data.replies ?? [])
-        .map((reply) => reply.addSheet?.properties)
-        .filter(Boolean)
-        .map((props) => ({ title: props?.title ?? 'unknown', sheetId: props?.sheetId }));
+        .map((reply: sheets_v4.Schema$Response) => reply.addSheet?.properties ?? null)
+        .filter((props): props is sheets_v4.Schema$SheetProperties => Boolean(props))
+        .map((props) => ({ title: props.title ?? 'unknown', sheetId: props.sheetId ?? -1 }));
       console.info('[googleSheets] step create_sheet_requests_sent', {
         createdSheets,
       });
