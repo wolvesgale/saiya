@@ -16,7 +16,20 @@ type Agency = {
 
 type User = { id: string; email: string; role: string; isActive: boolean };
 
-type Venue = { id: string; name: string; address: string | null; cashHandling: string | null; attachmentUrl: string | null };
+type Venue = {
+  id: string;
+  agencyId: string | null;
+  name: string;
+  address: string | null;
+  note: string | null;
+  notes: string | null;
+  cashHandling: string | null;
+  attachmentUrl: string | null;
+  hours: string | null;
+  workWindow: string | null;
+  loadInTime: string | null;
+  loadOutTime: string | null;
+};
 
 type Attachment = { id: string; filename: string; url: string | null; createdAt: string };
 
@@ -99,6 +112,8 @@ export default function AdminDashboard() {
   const [agencySort, setAgencySort] = useState<'name-asc' | 'name-desc' | 'created-desc' | 'created-asc'>('name-asc');
   const [userQuery, setUserQuery] = useState('');
   const [venueQuery, setVenueQuery] = useState('');
+  const [editingVenueId, setEditingVenueId] = useState<string | null>(null);
+  const [deleteTargetVenue, setDeleteTargetVenue] = useState<Venue | null>(null);
   const [eventQuery, setEventQuery] = useState('');
   const [intermediaryQuery, setIntermediaryQuery] = useState('');
 
@@ -345,6 +360,7 @@ export default function AdminDashboard() {
         workWindow: formData.get('workWindow'),
         loadInTime: formData.get('loadInTime'),
         loadOutTime: formData.get('loadOutTime'),
+        agencyId: formData.get('agencyId') || null,
       }),
     });
 
@@ -364,6 +380,58 @@ export default function AdminDashboard() {
 
     event.currentTarget.reset();
     refresh();
+  };
+
+  const handleUpdateVenue = async (event: React.FormEvent<HTMLFormElement>, venueId: string) => {
+    event.preventDefault();
+    setSectionMessage('venue', null);
+
+    const formData = new FormData(event.currentTarget);
+    const response = await fetch(`/api/venues/${venueId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: formData.get('venueName'),
+        address: formData.get('venueAddress') || null,
+        note: formData.get('note') || null,
+        cashHandling: formData.get('cashHandling') || null,
+        notes: formData.get('notes') || null,
+        hours: formData.get('hours') || null,
+        workWindow: formData.get('workWindow') || null,
+        loadInTime: formData.get('loadInTime') || null,
+        loadOutTime: formData.get('loadOutTime') || null,
+        agencyId: formData.get('agencyId') || null,
+      }),
+    });
+
+    if (response.ok) {
+      setSectionMessage('venue', '会場情報を更新しました。');
+      setEditingVenueId(null);
+      await refresh();
+      return;
+    }
+
+    const body = await response.json().catch(() => null);
+    setSectionMessage('venue', body?.message ?? '会場情報の更新に失敗しました。');
+  };
+
+  const handleDeleteVenue = async (venueId: string) => {
+    setSectionMessage('venue', null);
+    const response = await fetch(`/api/venues/${venueId}`, { method: 'DELETE' });
+
+    if (response.ok) {
+      setSectionMessage('venue', '会場を削除しました。');
+      setDeleteTargetVenue(null);
+      await refresh();
+      return;
+    }
+
+    const body = await response.json().catch(() => null);
+    if (response.status === 409) {
+      setSectionMessage('venue', body?.message ?? '関連データが存在するため会場を削除できません。');
+      return;
+    }
+    setSectionMessage('venue', body?.message ?? '会場の削除に失敗しました。');
   };
 
   const handleCreateEvent = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -795,6 +863,51 @@ export default function AdminDashboard() {
             </div>
 
             <div>
+              <div className="flex items-center justify-between">
+                <label htmlFor="venue-agency">仲介業者（代理店）</label>
+                <details className="text-xs">
+                  <summary className="cursor-pointer text-indigo-300">＋仲介業者を追加</summary>
+                  <form
+                    className="mt-2 flex items-center gap-2"
+                    onSubmit={async (submitEvent) => {
+                      submitEvent.preventDefault();
+                      const fd = new FormData(submitEvent.currentTarget);
+                      const response = await fetch('/api/agencies', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name: fd.get('name') }),
+                      });
+                      if (!response.ok) {
+                        const body = await response.json().catch(() => null);
+                        setSectionMessage('venue', body?.message ?? '仲介業者の作成に失敗しました。');
+                        return;
+                      }
+                      const createdAgency = (await response.json()) as Agency;
+                      setAgencies((prev) => [createdAgency, ...prev]);
+                      const select = document.getElementById('venue-agency') as HTMLSelectElement | null;
+                      if (select) select.value = createdAgency.id;
+                      setSectionMessage('venue', '仲介業者を作成しました。');
+                      submitEvent.currentTarget.reset();
+                    }}
+                  >
+                    <input name="name" required placeholder="業者名" className="text-xs" />
+                    <button type="submit" className="bg-slate-700 text-white">
+                      追加
+                    </button>
+                  </form>
+                </details>
+              </div>
+              <select id="venue-agency" name="agencyId">
+                <option value="">未選択</option>
+                {agencies.map((agency) => (
+                  <option key={agency.id} value={agency.id}>
+                    {agency.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
               <label htmlFor="venue-hours">営業時間</label>
               <input id="venue-hours" name="hours" list="time-options" placeholder="09:00" />
             </div>
@@ -820,64 +933,128 @@ export default function AdminDashboard() {
           </form>
 
           <ul className="space-y-3 text-sm text-slate-300">
-            {filteredVenues.map((venue) => (
-              <li key={venue.id} className="border border-slate-800 rounded p-3 space-y-2">
-                <div>
-                  {venue.name} (
-                  {venue.cashHandling === 'HOLD' ? '預かり' : venue.cashHandling === 'TAKE_HOME' ? '持ち帰り' : '未設定'})
-                </div>
+            {filteredVenues.map((venue) => {
+              const isEditing = editingVenueId === venue.id;
+              return (
+                <li key={venue.id} className="border border-slate-800 rounded p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      {venue.name} (
+                      {venue.cashHandling === 'HOLD' ? '預かり' : venue.cashHandling === 'TAKE_HOME' ? '持ち帰り' : '未設定'})
+                    </div>
+                    <div className="flex gap-2">
+                      <button className="bg-slate-700 text-white" type="button" onClick={() => setEditingVenueId(isEditing ? null : venue.id)}>
+                        {isEditing ? '編集を閉じる' : '編集'}
+                      </button>
+                      <button className="bg-rose-500/80 text-white" type="button" onClick={() => setDeleteTargetVenue(venue)}>
+                        削除
+                      </button>
+                    </div>
+                  </div>
 
-                {venueAttachmentLoading[venue.id] ? (
-                  <div className="text-xs text-slate-500">添付ファイルを読み込み中...</div>
-                ) : venueAttachments[venue.id]?.length ? (
-                  <ul className="space-y-1 text-xs text-slate-300">
-                    {venueAttachments[venue.id].map((attachment) => (
-                      <li key={attachment.id} className="flex flex-wrap items-center gap-2">
-                        {attachment.url ? (
-                          <a className="text-indigo-300 underline" href={attachment.url} target="_blank" rel="noreferrer">
-                            {attachment.filename}
-                          </a>
-                        ) : (
-                          <span>{attachment.filename}</span>
-                        )}
-                        <button
-                          type="button"
-                          className="text-rose-300 underline"
-                          onClick={() => handleDeleteAttachment(venue.id, attachment.id)}
-                        >
-                          削除
+                  {isEditing ? (
+                    <form className="grid gap-2 md:grid-cols-2" onSubmit={(submitEvent) => handleUpdateVenue(submitEvent, venue.id)}>
+                      <input name="venueName" defaultValue={venue.name} required />
+                      <input name="venueAddress" defaultValue={venue.address ?? ''} placeholder="住所" />
+                      <textarea className="md:col-span-2" name="note" defaultValue={venue.note ?? ''} placeholder="会場メモ" rows={2} />
+                      <select name="cashHandling" defaultValue={venue.cashHandling ?? ''}>
+                        <option value="">選択してください</option>
+                        {cashHandlingOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      <select name="agencyId" defaultValue={venue.agencyId ?? ''}>
+                        <option value="">未選択</option>
+                        {agencies.map((agency) => (
+                          <option key={agency.id} value={agency.id}>
+                            {agency.name}
+                          </option>
+                        ))}
+                      </select>
+                      <input name="hours" defaultValue={venue.hours ?? ''} placeholder="営業時間" />
+                      <input name="workWindow" defaultValue={venue.workWindow ?? ''} placeholder="作業可能" />
+                      <input name="loadInTime" defaultValue={venue.loadInTime ?? ''} placeholder="搬入時間" />
+                      <input name="loadOutTime" defaultValue={venue.loadOutTime ?? ''} placeholder="搬出時間" />
+                      <textarea className="md:col-span-2" name="notes" defaultValue={venue.notes ?? ''} placeholder="注意事項" rows={2} />
+                      <div className="md:col-span-2">
+                        <button className="bg-indigo-500 text-white" type="submit">
+                          更新
                         </button>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <div className="text-xs text-slate-500">添付ファイルなし</div>
-                )}
+                      </div>
+                    </form>
+                  ) : null}
 
-                <details className="mt-2">
-                  <summary className="cursor-pointer text-xs text-slate-300">添付を追加</summary>
-                  <form
-                    onSubmit={(submitEvent) => {
-                      submitEvent.preventDefault();
-                      const fd = new FormData(submitEvent.currentTarget);
-                      const files = fd.getAll('file').filter((item): item is File => item instanceof File && item.size > 0);
-                      if (files.length > 0) {
-                        handleUploadVenueAttachments(venue.id, files);
-                        submitEvent.currentTarget.reset();
-                      }
-                    }}
-                    className="space-y-2 mt-2"
-                  >
-                    <input name="file" type="file" multiple />
-                    <button className="bg-slate-700 text-white" type="submit">
-                      添付をアップロード
-                    </button>
-                  </form>
-                </details>
-              </li>
-            ))}
+                  {venueAttachmentLoading[venue.id] ? (
+                    <div className="text-xs text-slate-500">添付ファイルを読み込み中...</div>
+                  ) : venueAttachments[venue.id]?.length ? (
+                    <ul className="space-y-1 text-xs text-slate-300">
+                      {venueAttachments[venue.id].map((attachment) => (
+                        <li key={attachment.id} className="flex flex-wrap items-center gap-2">
+                          {attachment.url ? (
+                            <a className="text-indigo-300 underline" href={attachment.url} target="_blank" rel="noreferrer">
+                              {attachment.filename}
+                            </a>
+                          ) : (
+                            <span>{attachment.filename}</span>
+                          )}
+                          <button
+                            type="button"
+                            className="text-rose-300 underline"
+                            onClick={() => handleDeleteAttachment(venue.id, attachment.id)}
+                          >
+                            削除
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div className="text-xs text-slate-500">添付ファイルなし</div>
+                  )}
+
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-xs text-slate-300">添付を追加</summary>
+                    <form
+                      onSubmit={(submitEvent) => {
+                        submitEvent.preventDefault();
+                        const fd = new FormData(submitEvent.currentTarget);
+                        const files = fd.getAll('file').filter((item): item is File => item instanceof File && item.size > 0);
+                        if (files.length > 0) {
+                          handleUploadVenueAttachments(venue.id, files);
+                          submitEvent.currentTarget.reset();
+                        }
+                      }}
+                      className="space-y-2 mt-2"
+                    >
+                      <input name="file" type="file" multiple />
+                      <button className="bg-slate-700 text-white" type="submit">
+                        添付をアップロード
+                      </button>
+                    </form>
+                  </details>
+                </li>
+              );
+            })}
             {!filteredVenues.length ? <li className="text-xs text-slate-500">該当会場がありません。</li> : null}
           </ul>
+
+          {deleteTargetVenue ? (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4" role="alertdialog" aria-modal="true" aria-labelledby="venue-delete-title">
+              <div className="w-full max-w-md rounded border border-rose-500/40 bg-slate-900 p-5 space-y-4">
+                <h3 id="venue-delete-title" className="text-base font-semibold text-rose-200">会場を削除しますか？</h3>
+                <p className="text-sm text-slate-300">{deleteTargetVenue.name} を削除します。この操作は取り消せません。</p>
+                <div className="flex justify-end gap-2">
+                  <button type="button" className="bg-slate-700 text-white" onClick={() => setDeleteTargetVenue(null)}>
+                    キャンセル
+                  </button>
+                  <button type="button" className="bg-rose-600 text-white" onClick={() => handleDeleteVenue(deleteTargetVenue.id)}>
+                    削除する
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </section>
       ) : null}
 

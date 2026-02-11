@@ -101,6 +101,7 @@ model Agency {
   events Event[]
   users  User[]
   sales  Sale[]
+  venues Venue[]
 }
 
 model Intermediary {
@@ -118,6 +119,7 @@ model Intermediary {
 model Venue {
   id                String   @id @default(uuid())
   tenantId          String
+  agencyId          String?
   name              String
   address           String?
   note              String?
@@ -137,6 +139,7 @@ model Venue {
   updatedAt         DateTime @updatedAt
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
+  agency Agency? @relation(fields: [agencyId], references: [id])
   events Event[]
 }
 
