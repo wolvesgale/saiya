@@ -14,7 +14,10 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
-    "seed": "ts-node --esm prisma/seed.ts"
+    "seed": "ts-node --esm prisma/seed.ts",
+    "prisma:migrate:status": "prisma migrate status",
+    "prisma:migrate:resolve:rolledback": "prisma migrate resolve --rolled-back 20260211100000_add_venue_agency_id",
+    "prisma:migrate:resolve:applied": "prisma migrate resolve --applied 20260211100000_add_venue_agency_id"
   },
   "dependencies": {
     "@aws-sdk/client-ses": "^3.637.0",
