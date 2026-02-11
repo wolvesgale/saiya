@@ -1,9 +1,29 @@
+import { Prisma } from '@prisma/client';
 import { NextResponse } from 'next/server';
 import { getPrisma } from '@/lib/db';
 import { requireSession, requireRoles, errorResponse } from '@/lib/api';
 import { auditLog } from '@/lib/audit';
 
 export const runtime = 'nodejs';
+
+type VenuePayload = {
+  name?: string;
+  address?: string | null;
+  note?: string | null;
+  attachmentUrl?: string | null;
+  phone?: string | null;
+  contactName?: string | null;
+  trashRule?: string | null;
+  cashHandling?: 'HOLD' | 'TAKE_HOME' | null;
+  notes?: string | null;
+  hours?: string | null;
+  workWindow?: string | null;
+  loadInTime?: string | null;
+  loadOutTime?: string | null;
+  preContactRequired?: boolean;
+  brokerNote?: string | null;
+  agencyId?: string | null;
+};
 
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
   const prisma = getPrisma();
@@ -14,11 +34,19 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     const roleResponse = requireRoles(user.role, ['SUPER_ADMIN', 'ADMIN']);
     if (roleResponse) return roleResponse;
 
-    const payload = await request.json();
+    const payload = (await request.json()) as VenuePayload;
     const venue = await prisma.venue.findUnique({ where: { id: params.id } });
     if (!venue) return NextResponse.json({ message: 'Not found' }, { status: 404 });
     if (user.role !== 'SUPER_ADMIN' && venue.tenantId !== user.tenantId) {
       return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+    }
+
+    const agencyId = payload.agencyId === '' ? null : payload.agencyId;
+    if (agencyId) {
+      const agency = await prisma.agency.findUnique({ where: { id: agencyId } });
+      if (!agency || agency.tenantId !== venue.tenantId) {
+        return NextResponse.json({ message: 'Invalid agencyId' }, { status: 400 });
+      }
     }
 
     const updated = await prisma.venue.update({
@@ -39,6 +67,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
         loadOutTime: payload.loadOutTime ?? venue.loadOutTime,
         preContactRequired: payload.preContactRequired ?? venue.preContactRequired,
         brokerNote: payload.brokerNote ?? venue.brokerNote,
+        agencyId: agencyId ?? null,
       },
     });
 
@@ -65,7 +94,15 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
       return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     }
 
-    await prisma.venue.delete({ where: { id: params.id } });
+    try {
+      await prisma.venue.delete({ where: { id: params.id } });
+    } catch (deleteError) {
+      if (deleteError instanceof Prisma.PrismaClientKnownRequestError && deleteError.code === 'P2003') {
+        return NextResponse.json({ message: '関連するイベントがあるため削除できません。' }, { status: 409 });
+      }
+      throw deleteError;
+    }
+
     auditLog('venue.deleted', { venueId: params.id, userId: user.id });
 
     return NextResponse.json({ ok: true });

@@ -69,14 +69,16 @@ Repeat for any other missing columns that exist in `prisma/schema.prisma`.
 ## Migration recovery (P3009)
 
 If Prisma reports `P3009` (failed migration found) in production, you must resolve it manually.
+See also: `docs/migrations/P3009-Recovery.md` for the branch-by-branch recovery flow for `20260211100000_add_venue_agency_id`.
+
 Decide whether the failed migration already applied its SQL or not, then mark it:
 
 ```bash
 # Mark as rolled back (if the migration did NOT apply)
-npx prisma migrate resolve --rolled-back 20260202001000_seed_xrule_tenant
+npx prisma migrate resolve --rolled-back 20260211100000_add_venue_agency_id
 
 # Mark as applied (if the migration DID apply successfully)
-npx prisma migrate resolve --applied 20260202001000_seed_xrule_tenant
+npx prisma migrate resolve --applied 20260211100000_add_venue_agency_id
 ```
 
 After resolving, re-run `npx prisma migrate deploy`.

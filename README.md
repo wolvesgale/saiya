@@ -76,15 +76,25 @@ DATABASE_URL="Pooler接続文字列" DIRECT_URL="Direct接続文字列" npx pris
 ```
 
 ### Prisma migrate resolve（P3009復旧）
-本番DBで `P3009` が出た場合は手動で復旧します（自動では実行しません）。
-移行SQLが適用済みかどうかを確認し、該当の migration を `--applied` か `--rolled-back` で解決してください。
+Vercel で `P3009` が出た場合は、まず復旧手順書を参照してください。
+
+- 手順書: `docs/migrations/P3009-Recovery.md`
+
+最短確認コマンド:
 ```bash
-npx prisma migrate resolve --rolled-back 20260202001000_seed_xrule_tenant
-# もしくは
-npx prisma migrate resolve --applied 20260202001000_seed_xrule_tenant
+npx prisma migrate status
 ```
-復旧後に `npx prisma migrate deploy` を実行します。
-※ Prisma 5.19.x では `prisma migrate status --json` が使えないため、build ではテキスト出力を判定します。
+
+`20260211100000_add_venue_agency_id` の復旧コマンド（ケース別）:
+```bash
+# A) DBに変更が入っていない場合
+npx prisma migrate resolve --rolled-back 20260211100000_add_venue_agency_id
+npx prisma migrate deploy
+
+# B) 途中まで適用済みの場合
+npx prisma migrate resolve --applied 20260211100000_add_venue_agency_id
+npx prisma migrate deploy
+```
 
 ### セキュリティ注意
 - `.env` などの秘密情報は **絶対にコミットしない** でください。
