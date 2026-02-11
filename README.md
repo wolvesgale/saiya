@@ -96,6 +96,19 @@ npx prisma migrate resolve --applied 20260211100000_add_venue_agency_id
 npx prisma migrate deploy
 ```
 
+運用では npm scripts も利用できます:
+```bash
+npm run prisma:migrate:status
+
+# A) DBに変更が入っていない場合
+npm run prisma:migrate:resolve:rolledback
+npm run prisma:migrate:deploy
+
+# B) DBが既に最終状態（例: 42701 already exists）の場合
+npm run prisma:migrate:resolve:applied
+npm run prisma:migrate:deploy
+```
+
 ### セキュリティ注意
 - `.env` などの秘密情報は **絶対にコミットしない** でください。
 - もし過去にコミットしてしまった場合は、DBパスワードやトークンを **必ずローテーション** してください。

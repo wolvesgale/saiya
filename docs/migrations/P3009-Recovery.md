@@ -25,13 +25,13 @@ Vercel deploy で `prisma migrate deploy` が `P3009` で停止する場合、�
 npx prisma migrate status
 ```
 
-あわせて以下のどちらか（可能なら両方）で状態を確認します。
+あわせて以下の両方を確認してください。
 
 ### 1-A. `_prisma_migrations` を確認
 
 `20260211100000_add_venue_agency_id` の行を確認し、`finished_at` / `rolled_back_at` / `logs` を見る。
 
-確認SQL例:
+確認SQL:
 
 ```sql
 select migration_name, started_at, finished_at, rolled_back_at, logs
@@ -39,27 +39,24 @@ from "_prisma_migrations"
 where migration_name = '20260211100000_add_venue_agency_id';
 ```
 
-### 1-B. 実テーブル状態を確認
-
-migration が作るはずの実体があるか確認する。
-
-- `Venue.agencyId` カラムが存在するか
-- `Venue_agencyId_fkey` が存在するか
-
-確認SQL例:
+### 1-B. 実テーブル状態を確認（コピペ可）
 
 ```sql
--- カラム確認
-select column_name
+-- (1) agencyId カラム
+select column_name, data_type, is_nullable
 from information_schema.columns
-where table_schema = 'public'
-  and table_name = 'Venue'
-  and column_name = 'agencyId';
+where table_name = 'Venue' and column_name = 'agencyId';
 
--- FK確認
+-- (2) FK 制約名
 select conname
 from pg_constraint
 where conname = 'Venue_agencyId_fkey';
+
+-- (3) ON DELETE が SET NULL か確認（任意だが推奨）
+-- confdeltype: 'n' = SET NULL（Postgresの内部コード）
+select c.conname, c.confdeltype
+from pg_constraint c
+where c.conname = 'Venue_agencyId_fkey';
 ```
 
 ---
@@ -85,16 +82,15 @@ npx prisma migrate deploy
 
 ---
 
-## B) 途中まで適用されている場合（列/FKが一部存在する等）
+## B) DBは最終状態だが migration が failed のまま残っている場合（今回の確定ケース）
 
 判断目安:
-- `Venue.agencyId` はあるが FK がない
-- あるいは migration.sql 相当の状態と一致していない
+- `Venue.agencyId` が存在する
+- `Venue_agencyId_fkey` が存在する
+- 必要なら `confdeltype = 'n'`（ON DELETE SET NULL）も確認できる
+- `_prisma_migrations.logs` に `42701`（`column "agencyId" ... already exists`）が出ている
 
-手順:
-1. 手動SQLでDBを **migration.sql の意図する最終状態** に揃える
-   - 不足分のカラム/FKを追加
-2. その後に履歴を applied として解決
+この場合は **再適用ではなく履歴整合** を行います（Option 2）。
 
 実行コマンド:
 
@@ -104,8 +100,8 @@ npx prisma migrate deploy
 ```
 
 意味:
-- 実体は揃っているので、履歴のみ「適用済み」に寄せる
-- 以降の migration を前進可能にする
+- DB実体は揃っているため、migration 履歴を applied に寄せる
+- `P3009` ブロックを解除し、次の migration を進められるようにする
 
 ---
 
@@ -124,5 +120,6 @@ npx prisma migrate status
 ## 4. よくある注意点
 
 - `P3009` はアプリコード修正では解消しない（DB migration 履歴の復旧が必要）
-- `resolve --applied` / `--rolled-back` の選択を誤ると、次回 deploy で再失敗する
+- 今回のように `42701 already exists` の場合、`--rolled-back` ではなく `--applied` を選ぶ
 - 必ず「実テーブル状態」と「_prisma_migrations」の両面で確認してから実行する
+- 本番DBの削除・リセットは行わない
