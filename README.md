@@ -22,17 +22,32 @@ npm run dev
 ```
 
 ## 環境変数
-### 必須
-- `DATABASE_URL` : Supabase Pooler **Transaction** mode (通常 6543) を使う **ランタイム用** の接続文字列
-  - Pooler Transaction を使う場合は `pgbouncer=true&connection_limit=1` を付与する
-- `DIRECT_URL` : Supabase Pooler **Session** mode (通常 5432) を使う **Prisma CLI用** の接続文字列
-  - IPv4-only 環境では direct 接続 (`db.<project-ref>.supabase.co`) は到達できない場合があるため、Session pooler を推奨
-  - 未設定の場合は `DATABASE_URL` と同じ値を設定する（`.env.example` を参照）
-  - Vercelの環境変数で **空欄のまま登録** すると Prisma が落ちるため、空欄なら削除するか正しい値を設定
-  - Vercel/Supabaseでは `POSTGRES_PRISMA_URL` / `POSTGRES_URL_NON_POOLING` があれば build・runtime が自動補完
-- `XRULE_TENANT_ID` : 任意（単一テナント運用の固定テナントID。未設定ならDBから `Tenant.name = 'Xrule'` を解決）
+### Prisma / Supabase（最重要）
+`prisma/schema.prisma` は以下2変数を参照します。
+
+- `POSTGRES_PRISMA_URL`（必須）: Supabase Pooler **Transaction** URL（通常 `:6543` + `pgbouncer=true`）
+  - 例: `postgresql://postgres.<project-ref>:<password>@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1`
+- `POSTGRES_URL_NON_POOLING`（必須推奨）: Prisma migrate 用の **direct** URL（`db.<project-ref>.supabase.co:5432`）
+  - 例: `postgresql://postgres:<password>@db.<project-ref>.supabase.co:5432/postgres`
+  - 未設定時は migrate 実行スクリプトが `POSTGRES_PRISMA_URL` へフォールバック
+
+補助変数（任意）:
+- `DATABASE_URL` / `DIRECT_URL`: ランタイム互換のためのエイリアス（未設定でも上記2変数から補完）
+- `POSTGRES_URL`: **非推奨**（既存互換のみ。新規設定は禁止）
+
+必須アプリ設定:
+- `XRULE_TENANT_ID` : 任意（単一テナント運用の固定テナントID）
 - `FILE_STORAGE_PROVIDER` : `blob`（デフォルト）/ `gdrive`
-- `BLOB_READ_WRITE_TOKEN` : Vercel BlobのRWトークン（`FILE_STORAGE_PROVIDER=blob` の場合）
+- `BLOB_READ_WRITE_TOKEN` : `FILE_STORAGE_PROVIDER=blob` の場合に必須
+
+### Supabaseキー
+- `NEXT_PUBLIC_SUPABASE_URL`（公開可）
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`（公開可）
+- `SUPABASE_SERVICE_ROLE_KEY`（秘密）
+- `SUPABASE_SECRET_KEY`（秘密）
+- `SUPABASE_JWT_SECRET`（秘密）
+
+> 秘密情報は `.env.local` などのgit管理外ファイルに保存し、リポジトリには絶対にコミットしないでください。
 
 ### Google Sheets（売上連携）
 - `GOOGLE_SHEETS_SPREADSHEET_ID` : `1BcUh6QbeJoSxCdSfbabvTi1dlJ05ifVJ`
@@ -71,8 +86,13 @@ npm run seed
 ## 本番DBへの反映（Vercelでは自動でseedされません）
 本番DBに初期管理者が存在しないとログインできません。Vercelの自動ビルドでは seed は実行されないため、手動で実行してください。
 ```bash
-DATABASE_URL="Pooler接続文字列" DIRECT_URL="Direct接続文字列" npx prisma migrate deploy
-DATABASE_URL="Pooler接続文字列" DIRECT_URL="Direct接続文字列" npx prisma db seed
+POSTGRES_PRISMA_URL="Pooler接続文字列(6543, pgbouncer=true)" \
+POSTGRES_URL_NON_POOLING="Direct接続文字列(db.<project-ref>.supabase.co:5432)" \
+npm run prisma:migrate:deploy
+
+POSTGRES_PRISMA_URL="Pooler接続文字列(6543, pgbouncer=true)" \
+POSTGRES_URL_NON_POOLING="Direct接続文字列(db.<project-ref>.supabase.co:5432)" \
+npx prisma db seed
 ```
 
 ### Prisma migrate resolve（P3009復旧）
@@ -129,7 +149,7 @@ npm run prisma:migrate:deploy
 2. VercelでImportし、環境変数を設定
 3. Postgres/Blob/Upstash RedisをVercel Marketplace経由で作成
 4. `vercel.json` に定義したCron Jobsが有効化される
-5. `Project Settings -> Environment Variables` に `DATABASE_URL` と `DIRECT_URL` と `FILE_STORAGE_PROVIDER` を必ず登録
+5. `Project Settings -> Environment Variables` に `POSTGRES_PRISMA_URL` / `POSTGRES_URL_NON_POOLING` / `FILE_STORAGE_PROVIDER` を必ず登録
 6. `FILE_STORAGE_PROVIDER=blob` の場合は `BLOB_READ_WRITE_TOKEN` を登録
 7. `FILE_STORAGE_PROVIDER=gdrive` の場合は `GOOGLE_DRIVE_FOLDER_ID` / `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64` を登録
 8. Build Command を `npm run vercel-build` に設定し、migrate deploy を自動実行する
@@ -145,8 +165,10 @@ npm run prisma:migrate:deploy
      - Vercel Blob
      - Upstash Redis（KV用途）
    - 環境変数（Preview/Production 両方に同じ値を設定）
-     - `DATABASE_URL`（Supabase Pooler / pgbouncer 接続文字列）
-     - `DIRECT_URL`（Supabase non-pooling / direct 接続文字列）
+     - `POSTGRES_PRISMA_URL`（Supabase Transaction pooler / `:6543` / `pgbouncer=true`）
+     - `POSTGRES_URL_NON_POOLING`（Supabase direct接続 / `db.<project-ref>.supabase.co:5432`）
+     - `DATABASE_URL`（任意エイリアス）
+     - `DIRECT_URL`（任意エイリアス）
      - `FILE_STORAGE_PROVIDER`（`blob` or `gdrive`）
      - `BLOB_READ_WRITE_TOKEN`（`FILE_STORAGE_PROVIDER=blob` の場合）
      - `GOOGLE_SHEETS_SPREADSHEET_ID`
@@ -253,15 +275,41 @@ Hobbyプランは1日1回までの制限があるため日次で実行します�
 - 確認のみ: `npx prisma db push`
 
 ### Vercel用の接続設定
-- `DATABASE_URL` は Pooler (pgbouncer) を使う（ランタイム用）
-- `DIRECT_URL` は non-pooling (direct / 5432) を使う（migrate用）
-- `DIRECT_URL` を設定できない場合は `DATABASE_URL` と同じ値を設定する（ビルドスクリプトでフォールバック）
-- `DIRECT_URL` が空文字の場合もフォールバック対象。ただし `DATABASE_URL` は必須で、空ならビルドで明示的に失敗します
-- `DATABASE_URL` が未設定の場合は `POSTGRES_PRISMA_URL` / `POSTGRES_URL` / `POSTGRES_URL_NON_POOLING` の順で自動補完されます
-- `DIRECT_URL` が未設定の場合は `POSTGRES_URL_NON_POOLING` / `POSTGRES_PRISMA_URL` / `DATABASE_URL` の順で自動補完されます
-- ランタイムでも `lib/db.ts` が同じ優先順位で `DATABASE_URL` / `DIRECT_URL` を補完します
+- `POSTGRES_PRISMA_URL` を正とし、Supabase Transaction pooler (`:6543`) + `pgbouncer=true` を設定
+- `POSTGRES_URL_NON_POOLING` は必ず direct host (`db.<project-ref>.supabase.co:5432`) を設定
+- Prisma migrate系コマンドは `node scripts/prisma-command.mjs` 経由で実行し、`POSTGRES_URL_NON_POOLING` 未設定時のみ `POSTGRES_PRISMA_URL` にフォールバック
+- ランタイム（`lib/db.ts`）は `DATABASE_URL` / `DIRECT_URL` が空でも上記2変数から補完
+- `POSTGRES_URL` は非推奨。設定されている場合は `POSTGRES_PRISMA_URL` に統一する
 
 ## DynamoDBへ戻す場合のチェックリスト（将来用）
 - PK/SK設計（`TENANT#{tenantId}` / `USER#{userId}`）
 - ログイン参照キー（例 `USER#email`）とGSIが完全一致しているか
 - テナント跨ぎ検索が起きないか
+
+
+## 秘密情報ローテーション手順（Supabase）
+このリポジトリから Supabase ダッシュボードを直接操作することはできないため、必ず管理者が以下を実施してください。
+
+1. Supabase Dashboard で以下を再発行/更新
+   - DB Password
+   - `SUPABASE_SERVICE_ROLE_KEY`
+   - `SUPABASE_SECRET_KEY`
+   - `SUPABASE_JWT_SECRET`
+2. 直後に Vercel Production 環境変数を差し替え
+   ```bash
+   vercel env rm POSTGRES_PRISMA_URL production
+   vercel env add POSTGRES_PRISMA_URL production
+
+   vercel env rm POSTGRES_URL_NON_POOLING production
+   vercel env add POSTGRES_URL_NON_POOLING production
+
+   vercel env rm SUPABASE_SERVICE_ROLE_KEY production
+   vercel env add SUPABASE_SERVICE_ROLE_KEY production
+
+   vercel env rm SUPABASE_SECRET_KEY production
+   vercel env add SUPABASE_SECRET_KEY production
+
+   vercel env rm SUPABASE_JWT_SECRET production
+   vercel env add SUPABASE_JWT_SECRET production
+   ```
+3. `npm run prisma:env:check` で形式チェック後、再デプロイ
