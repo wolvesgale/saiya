@@ -5,19 +5,20 @@
   "type": "module",
   "scripts": {
     "dev": "next dev",
-    "build": "prisma migrate deploy && prisma generate && next build",
+    "build": "npm run prisma:env:check && node scripts/prisma-command.mjs migrate deploy && prisma generate && next build",
     "postinstall": "prisma generate",
-    "vercel-build": "prisma migrate deploy && prisma generate && next build",
+    "vercel-build": "npm run prisma:env:check && bash scripts/vercel-build.sh",
     "start": "next start",
     "lint": "next lint",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
-    "prisma:migrate:deploy": "prisma migrate deploy",
+    "prisma:migrate": "node scripts/prisma-command.mjs migrate dev",
+    "prisma:migrate:deploy": "node scripts/prisma-command.mjs migrate deploy",
     "prisma:studio": "prisma studio",
     "seed": "ts-node --esm prisma/seed.ts",
-    "prisma:migrate:status": "prisma migrate status",
-    "prisma:migrate:resolve:rolledback": "prisma migrate resolve --rolled-back 20260211100000_add_venue_agency_id",
-    "prisma:migrate:resolve:applied": "prisma migrate resolve --applied 20260211100000_add_venue_agency_id"
+    "prisma:migrate:status": "node scripts/prisma-command.mjs migrate status",
+    "prisma:migrate:resolve:rolledback": "node scripts/prisma-command.mjs migrate resolve --rolled-back 20260211100000_add_venue_agency_id",
+    "prisma:migrate:resolve:applied": "node scripts/prisma-command.mjs migrate resolve --applied 20260211100000_add_venue_agency_id",
+    "prisma:env:check": "node scripts/check-env.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-ses": "^3.637.0",

@@ -17,6 +17,23 @@ Vercel deploy で `prisma migrate deploy` が `P3009` で停止する場合、�
 
 ---
 
+## 0.5 接続文字列チェック（重要）
+
+`migrate deploy` は direct 接続を使わないと `P1001` / `P1012` につながることがあります。
+
+- `POSTGRES_PRISMA_URL`: Supabase pooler (`:6543`, `pgbouncer=true`)
+- `POSTGRES_URL_NON_POOLING`: Supabase direct (`db.<project-ref>.supabase.co:5432`)
+
+`POSTGRES_URL_NON_POOLING` が未設定だと、このリポジトリの migrate スクリプトは `POSTGRES_PRISMA_URL` にフォールバックしますが、安定運用のため direct URL を必ず設定してください。
+
+確認コマンド:
+
+```bash
+npm run prisma:env:check
+```
+
+---
+
 ## 1. 状態確認
 
 まず migration 状態を確認します。
