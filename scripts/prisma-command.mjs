@@ -8,26 +8,14 @@ if (args.length === 0) {
 }
 
 const env = { ...process.env };
-const pick = (...values) => values.find((value) => typeof value === 'string' && value.length > 0);
 
-const poolUrl = pick(env.POSTGRES_PRISMA_URL, env.DATABASE_URL, env.POSTGRES_URL);
-const directUrl = pick(env.POSTGRES_URL_NON_POOLING, env.DIRECT_URL, poolUrl);
-
-if (poolUrl) {
-  env.POSTGRES_PRISMA_URL = poolUrl;
-}
-
-if (directUrl) {
-  env.POSTGRES_URL_NON_POOLING = directUrl;
-}
-
-if (!env.POSTGRES_PRISMA_URL) {
-  console.error('[prisma-env] Missing POSTGRES_PRISMA_URL (or DATABASE_URL fallback).');
+if (!env.DATABASE_URL) {
+  console.error('[prisma-env] Missing DATABASE_URL.');
   process.exit(1);
 }
 
-if (!env.POSTGRES_URL_NON_POOLING) {
-  console.error('[prisma-env] Missing POSTGRES_URL_NON_POOLING (or DIRECT_URL fallback).');
+if (!env.DIRECT_URL) {
+  console.error('[prisma-env] Missing DIRECT_URL.');
   process.exit(1);
 }
 
