@@ -81,11 +81,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: 'Name required' }, { status: 400 });
     }
 
-    const agencyId = payload.agencyId ? payload.agencyId.toString() : null;
-    if (agencyId) {
-      const agency = await prisma.agency.findUnique({ where: { id: agencyId } });
-      if (!agency || agency.tenantId !== tenantId) {
-        return NextResponse.json({ message: 'Invalid agencyId' }, { status: 400 });
+    const intermediaryId = payload.intermediaryId ? payload.intermediaryId.toString() : null;
+    if (intermediaryId) {
+      const intermediary = await prisma.intermediary.findUnique({ where: { id: intermediaryId } });
+      if (!intermediary || intermediary.tenantId !== tenantId) {
+        return NextResponse.json({ message: 'Invalid intermediaryId' }, { status: 400 });
       }
     }
 
@@ -107,7 +107,7 @@ export async function POST(request: Request) {
         loadOutTime: payload.loadOutTime ?? null,
         preContactRequired: payload.preContactRequired ?? false,
         brokerNote: payload.brokerNote ?? null,
-        agencyId,
+        intermediaryId,
       },
     });
 

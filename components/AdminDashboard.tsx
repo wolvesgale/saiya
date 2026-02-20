@@ -18,7 +18,7 @@ type User = { id: string; email: string; role: string; isActive: boolean };
 
 type Venue = {
   id: string;
-  agencyId: string | null;
+  intermediaryId: string | null;
   name: string;
   address: string | null;
   note: string | null;
@@ -360,7 +360,7 @@ export default function AdminDashboard() {
         workWindow: formData.get('workWindow'),
         loadInTime: formData.get('loadInTime'),
         loadOutTime: formData.get('loadOutTime'),
-        agencyId: formData.get('agencyId') || null,
+        intermediaryId: formData.get('intermediaryId') || null,
       }),
     });
 
@@ -400,7 +400,7 @@ export default function AdminDashboard() {
         workWindow: formData.get('workWindow') || null,
         loadInTime: formData.get('loadInTime') || null,
         loadOutTime: formData.get('loadOutTime') || null,
-        agencyId: formData.get('agencyId') || null,
+        intermediaryId: formData.get('intermediaryId') || null,
       }),
     });
 
@@ -864,7 +864,7 @@ export default function AdminDashboard() {
 
             <div>
               <div className="flex items-center justify-between">
-                <label htmlFor="venue-agency">仲介業者（代理店）</label>
+                <label htmlFor="venue-intermediary">仲介業者</label>
                 <details className="text-xs">
                   <summary className="cursor-pointer text-indigo-300">＋仲介業者を追加</summary>
                   <form
@@ -872,7 +872,7 @@ export default function AdminDashboard() {
                     onSubmit={async (submitEvent) => {
                       submitEvent.preventDefault();
                       const fd = new FormData(submitEvent.currentTarget);
-                      const response = await fetch('/api/agencies', {
+                      const response = await fetch('/api/intermediaries', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ name: fd.get('name') }),
@@ -882,10 +882,10 @@ export default function AdminDashboard() {
                         setSectionMessage('venue', body?.message ?? '仲介業者の作成に失敗しました。');
                         return;
                       }
-                      const createdAgency = (await response.json()) as Agency;
-                      setAgencies((prev) => [createdAgency, ...prev]);
-                      const select = document.getElementById('venue-agency') as HTMLSelectElement | null;
-                      if (select) select.value = createdAgency.id;
+                      const created = (await response.json()) as Intermediary;
+                      setIntermediaries((prev) => [created, ...prev]);
+                      const select = document.getElementById('venue-intermediary') as HTMLSelectElement | null;
+                      if (select) select.value = created.id;
                       setSectionMessage('venue', '仲介業者を作成しました。');
                       submitEvent.currentTarget.reset();
                     }}
@@ -897,11 +897,11 @@ export default function AdminDashboard() {
                   </form>
                 </details>
               </div>
-              <select id="venue-agency" name="agencyId">
+              <select id="venue-intermediary" name="intermediaryId">
                 <option value="">未選択</option>
-                {agencies.map((agency) => (
-                  <option key={agency.id} value={agency.id}>
-                    {agency.name}
+                {intermediaries.map((intermediary) => (
+                  <option key={intermediary.id} value={intermediary.id}>
+                    {intermediary.name}
                   </option>
                 ))}
               </select>
@@ -965,11 +965,11 @@ export default function AdminDashboard() {
                           </option>
                         ))}
                       </select>
-                      <select name="agencyId" defaultValue={venue.agencyId ?? ''}>
+                      <select name="intermediaryId" defaultValue={venue.intermediaryId ?? ''}>
                         <option value="">未選択</option>
-                        {agencies.map((agency) => (
-                          <option key={agency.id} value={agency.id}>
-                            {agency.name}
+                        {intermediaries.map((intermediary) => (
+                          <option key={intermediary.id} value={intermediary.id}>
+                            {intermediary.name}
                           </option>
                         ))}
                       </select>

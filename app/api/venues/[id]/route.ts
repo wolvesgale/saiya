@@ -22,7 +22,7 @@ type VenuePayload = {
   loadOutTime?: string | null;
   preContactRequired?: boolean;
   brokerNote?: string | null;
-  agencyId?: string | null;
+  intermediaryId?: string | null;
 };
 
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
@@ -41,11 +41,11 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     }
 
-    const agencyId = payload.agencyId === '' ? null : payload.agencyId;
-    if (agencyId) {
-      const agency = await prisma.agency.findUnique({ where: { id: agencyId } });
-      if (!agency || agency.tenantId !== venue.tenantId) {
-        return NextResponse.json({ message: 'Invalid agencyId' }, { status: 400 });
+    const intermediaryId = payload.intermediaryId === '' ? null : payload.intermediaryId;
+    if (intermediaryId) {
+      const intermediary = await prisma.intermediary.findUnique({ where: { id: intermediaryId } });
+      if (!intermediary || intermediary.tenantId !== venue.tenantId) {
+        return NextResponse.json({ message: 'Invalid intermediaryId' }, { status: 400 });
       }
     }
 
@@ -67,7 +67,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
         loadOutTime: payload.loadOutTime ?? venue.loadOutTime,
         preContactRequired: payload.preContactRequired ?? venue.preContactRequired,
         brokerNote: payload.brokerNote ?? venue.brokerNote,
-        agencyId: agencyId ?? null,
+        intermediaryId: intermediaryId ?? null,
       },
     });
 
