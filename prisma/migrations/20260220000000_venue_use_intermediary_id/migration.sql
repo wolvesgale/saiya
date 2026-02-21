@@ -6,7 +6,7 @@ ALTER TABLE "Venue" DROP CONSTRAINT IF EXISTS "Venue_agencyId_fkey";
 ALTER TABLE "Venue" DROP COLUMN IF EXISTS "agencyId";
 
 -- Add intermediaryId column (no-op if already present)
-ALTER TABLE "Venue" ADD COLUMN IF NOT EXISTS "intermediaryId" TEXT;
+ALTER TABLE "Venue" ADD COLUMN IF NOT EXISTS "intermediaryId" UUID;
 
 -- AddForeignKey (no-op if constraint already exists)
 DO $$
