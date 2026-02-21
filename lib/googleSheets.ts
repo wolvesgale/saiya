@@ -216,7 +216,7 @@ export async function syncSalesToSheets(payload: SyncSalesPayload): Promise<Sync
     console.info('[googleSheets] step spreadsheets_get_start');
     const spreadsheet = await sheets.spreadsheets.get({
       spreadsheetId,
-      fields: 'properties.title,sheets(properties(title,sheetId))',
+      fields: 'properties.title,sheets.properties.title',
     });
     const spreadsheetTitle = spreadsheet.data.properties?.title ?? '';
     const sheetCount = spreadsheet.data.sheets?.length ?? 0;
@@ -354,19 +354,16 @@ export async function syncSalesToSheets(payload: SyncSalesPayload): Promise<Sync
     console.info('[googleSheets] step dashboard_written');
     console.info('[googleSheets] step syncedAt_written', { syncedAt: payload.syncedAt });
 
-    // --- Sheet 2（gid=1099607175）への集計レポート書き込み ---
-    const SUMMARY2_GID = 1099607175;
-    const SUMMARY2_FALLBACK_NAMES = ['シート2', 'Sheet2', '集計2', '集計'];
+    // --- Sheet 2（集計レポートシート）への書き込み ---
+    // シート名で検索（gid依存なし）、なければ新規作成
+    const SUMMARY2_CANDIDATE_NAMES = ['シート2', 'Sheet2', '集計2', '集計'];
     const sheetsList: sheets_v4.Schema$Sheet[] = spreadsheet.data.sheets ?? [];
+    const existingSheetNames = new Set(sheetsList.map((s) => s.properties?.title ?? ''));
 
-    // gidで検索 → 名前で検索 → なければ作成
     let summary2Name: string | null =
-      sheetsList.find((s) => s.properties?.sheetId === SUMMARY2_GID)?.properties?.title ??
-      sheetsList.find((s) => SUMMARY2_FALLBACK_NAMES.includes(s.properties?.title ?? ''))?.properties?.title ??
-      null;
+      SUMMARY2_CANDIDATE_NAMES.find((name) => existingSheetNames.has(name)) ?? null;
 
     if (!summary2Name) {
-      // シートが見つからない場合は新規作成
       const createRes = await sheets.spreadsheets.batchUpdate({
         spreadsheetId,
         requestBody: { requests: [{ addSheet: { properties: { title: 'シート2' } } }] },
