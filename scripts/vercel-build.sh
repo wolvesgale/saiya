@@ -16,10 +16,19 @@ echo "$STATUS_OUT"
 
 # Detect failed migrations (Prisma prints this exact line)
 if echo "$STATUS_OUT" | grep -q "Following migration have failed:"; then
+  # Extract the failing migration name (the line immediately after the header)
+  FAILED_MIGRATION="$(echo "$STATUS_OUT" \
+    | grep -A1 "Following migration have failed:" \
+    | tail -1 \
+    | tr -d ' \t\r')"
+
   echo ""
   echo "❌ Prisma has failed migrations. DO NOT run migrate deploy during build."
+  echo ""
+  echo "Failing migration: ${FAILED_MIGRATION}"
+  echo ""
   echo "Run the following command against the target DB, then redeploy:"
-  echo "  npm run prisma:migrate:resolve:applied"
+  echo "  node scripts/prisma-command.mjs migrate resolve --applied ${FAILED_MIGRATION}"
   echo ""
   echo "Then verify:"
   echo "  npm run prisma:migrate:status"
