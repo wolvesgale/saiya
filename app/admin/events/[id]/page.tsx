@@ -67,7 +67,9 @@ export default function AdminEventEditPage() {
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
-    const response = await fetch(`/api/events/${eventId}`, {
+
+    // イベント情報の更新
+    const eventResponse = await fetch(`/api/events/${eventId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -80,9 +82,20 @@ export default function AdminEventEditPage() {
         reportDeadline: formData.get('reportDeadline') || null,
       }),
     });
-    if (response.ok) {
+
+    // メモの更新（管理者による全文編集）
+    const memoText = formData.get('memoEdit')?.toString() ?? '';
+    const memoResponse = await fetch(`/api/events/${eventId}/memo`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: memoText }),
+    });
+
+    if (eventResponse.ok && memoResponse.ok) {
       setMessage('イベントを更新しました。');
       refresh();
+    } else {
+      setMessage('更新に一部失敗しました。再度お試しください。');
     }
   };
 
@@ -166,10 +179,15 @@ export default function AdminEventEditPage() {
           <input id="reportDeadline" name="reportDeadline" list="time-options" defaultValue={eventDetail.reportDeadline ?? '21:00'} />
         </div>
         <div>
-          <label>共有メモ (閲覧のみ)</label>
-          <div className="text-sm text-slate-300 whitespace-pre-wrap bg-slate-950/60 border border-slate-800 rounded p-3">
-            {eventDetail.memo ?? 'メモはまだありません。'}
-          </div>
+          <label htmlFor="memoEdit">共有メモ（管理者編集）</label>
+          <textarea
+            id="memoEdit"
+            name="memoEdit"
+            rows={6}
+            className="w-full bg-slate-950/60 border border-slate-700 rounded px-3 py-2 text-sm text-slate-100 whitespace-pre-wrap"
+            defaultValue={eventDetail.memo ?? ''}
+          />
+          <p className="text-xs text-slate-400 mt-1">代理店の追記内容を含む全文を自由に編集できます。空にするとメモを削除します。</p>
         </div>
         <button className="bg-indigo-500 text-white" type="submit">
           更新
