@@ -213,204 +213,139 @@ export async function syncSalesToSheets(payload: SyncSalesPayload): Promise<Sync
     });
     const sheets = google.sheets({ version: 'v4', auth });
 
-    console.info('[googleSheets] step spreadsheets_get_start');
-    const spreadsheet = await sheets.spreadsheets.get({
-      spreadsheetId,
-      fields: 'properties.title,sheets.properties.title',
-    });
-    const spreadsheetTitle = spreadsheet.data.properties?.title ?? '';
-    const sheetCount = spreadsheet.data.sheets?.length ?? 0;
-    console.info('[googleSheets] step spreadsheets_get_ok', {
-      spreadsheetTitle,
-      sheetCount,
-    });
-
-    const existingTitles = new Set(
-      (spreadsheet.data.sheets ?? [])
-        .map((sheet: sheets_v4.Schema$Sheet) => sheet.properties?.title ?? null)
-        .filter((title: string | null): title is string => Boolean(title)),
-    );
-    console.info('[googleSheets] step existingTitles', {
-      hasSalesRaw: existingTitles.has(SALES_RAW_SHEET_NAME),
-      hasDashboardSheet: existingTitles.has(sheetName),
-      dashboardSheetName: sheetName,
-    });
-
-    const requests = [];
-    if (!existingTitles.has(SALES_RAW_SHEET_NAME)) {
-      requests.push({ addSheet: { properties: { title: SALES_RAW_SHEET_NAME } } });
-    }
-    if (!existingTitles.has(sheetName)) {
-      requests.push({ addSheet: { properties: { title: sheetName } } });
-    }
-    if (requests.length > 0) {
-      const createResponse = await sheets.spreadsheets.batchUpdate({
+    // スプレッドシートのメタデータ取得（xlsx形式の場合は失敗するが処理は継続）
+    let spreadsheetTitle = '';
+    let sheetCount = 0;
+    try {
+      console.info('[googleSheets] step spreadsheets_get_start');
+      const spreadsheet = await sheets.spreadsheets.get({
         spreadsheetId,
-        requestBody: { requests },
+        fields: 'properties.title,sheets.properties.title',
       });
-      const createdSheets = (createResponse.data.replies ?? [])
-        .map((reply: sheets_v4.Schema$Response) => reply.addSheet?.properties ?? null)
-        .filter(
-          (
-            props: sheets_v4.Schema$SheetProperties | null,
-          ): props is sheets_v4.Schema$SheetProperties => Boolean(props),
-        )
-        .map((props: sheets_v4.Schema$SheetProperties) => ({
-          title: props.title ?? 'unknown',
-          sheetId: props.sheetId ?? -1,
-        }));
-      console.info('[googleSheets] step create_sheet_requests_sent', {
-        createdSheets,
-      });
+      spreadsheetTitle = spreadsheet.data.properties?.title ?? '';
+      sheetCount = spreadsheet.data.sheets?.length ?? 0;
+      console.info('[googleSheets] step spreadsheets_get_ok', { spreadsheetTitle, sheetCount });
+    } catch (metaErr) {
+      console.warn('[googleSheets] spreadsheets.get failed (xlsx format?), continuing with values-only ops', metaErr);
     }
 
-    await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range: `${SALES_RAW_SHEET_NAME}!A1:H1`,
-      valueInputOption: 'RAW',
-      requestBody: {
-        values: [['date', 'venueName', 'agencyName', 'amount', 'createdAt', 'saleId', 'tenantId', 'eventId']],
-      },
-    });
-    console.info('[googleSheets] step salesraw_header_written');
-
-    await sheets.spreadsheets.values.batchClear({
-      spreadsheetId,
-      requestBody: {
-        ranges: [`${SALES_RAW_SHEET_NAME}!A2:H`],
-      },
-    });
-    console.info('[googleSheets] step salesraw_cleared');
-
-    if (payload.records.length > 0) {
-      const values = payload.records.map((record) => [
-        record.date,
-        record.venueName,
-        record.agencyName,
-        record.amount,
-        record.createdAt,
-        record.saleId,
-        record.tenantId,
-        record.eventId,
-      ]);
+    // SalesRaw への生データ書き込み（シートが存在しない場合は警告のみ）
+    try {
       await sheets.spreadsheets.values.update({
         spreadsheetId,
-        range: `${SALES_RAW_SHEET_NAME}!A2:H${payload.records.length + 1}`,
+        range: `${SALES_RAW_SHEET_NAME}!A1:H1`,
         valueInputOption: 'RAW',
-        requestBody: { values },
+        requestBody: {
+          values: [['date', 'venueName', 'agencyName', 'amount', 'createdAt', 'saleId', 'tenantId', 'eventId']],
+        },
       });
+      await sheets.spreadsheets.values.batchClear({
+        spreadsheetId,
+        requestBody: { ranges: [`${SALES_RAW_SHEET_NAME}!A2:H`] },
+      });
+      if (payload.records.length > 0) {
+        const rawValues = payload.records.map((r) => [
+          r.date, r.venueName, r.agencyName, r.amount,
+          r.createdAt, r.saleId, r.tenantId, r.eventId,
+        ]);
+        await sheets.spreadsheets.values.update({
+          spreadsheetId,
+          range: `${SALES_RAW_SHEET_NAME}!A2:H${payload.records.length + 1}`,
+          valueInputOption: 'RAW',
+          requestBody: { values: rawValues },
+        });
+      }
+      console.info('[googleSheets] step salesraw_written', { rows: payload.records.length });
+    } catch (rawErr) {
+      console.warn('[googleSheets] SalesRaw write failed (sheet may not exist on xlsx)', rawErr);
     }
-    console.info('[googleSheets] step salesraw_rows_written', { rows: payload.records.length });
 
-    const agencyMonthlyQuery = `=QUERY(SalesRaw!A:D,"select C, sum(D), avg(D) where A >= date '"&TEXT(EOMONTH(TODAY(),-1)+1,"yyyy-mm-dd")&"' and A <= date '"&TEXT(EOMONTH(TODAY(),0),"yyyy-mm-dd")&"' group by C label C '代理店', sum(D) '当月累計', avg(D) '平均(当月)'", 1)`;
-    const venueDailyAverageQuery = `=QUERY(SalesRaw!A:D,"select A, B, avg(D) where A is not null group by A, B order by A desc label A '日付', B '会場', avg(D) '日次平均'", 1)`;
+    // --- 集計データをコードで計算してシート2に直接書き込む ---
+    // xlsx形式でも動作する values.batchUpdate のみ使用
 
-    const dashboardUpdates = [
-      {
-        range: `${sheetName}!A1`,
-        values: [['Sales Dashboard']],
-      },
-      {
-        range: `${sheetName}!A3:B7`,
-        values: [
-          [
-            '今月の累計売上',
-            '=SUM(FILTER(SalesRaw!D:D, SalesRaw!A:A>=EOMONTH(TODAY(),-1)+1, SalesRaw!A:A<=EOMONTH(TODAY(),0)))',
-          ],
-          [
-            '代理店平均（当月）',
-            '=AVERAGE(FILTER(SalesRaw!D:D, SalesRaw!A:A>=EOMONTH(TODAY(),-1)+1, SalesRaw!A:A<=EOMONTH(TODAY(),0)))',
-          ],
-          ['代理店単位 当月累計（一覧は右）', ''],
-          ['会場単位 日次平均（一覧は下）', ''],
-          ['最終同期', payload.syncedAt],
-        ],
-      },
-      {
-        range: `${sheetName}!D2:F2`,
-        values: [['代理店', '当月累計', '平均(当月)']],
-      },
-      {
-        range: `${sheetName}!D3`,
-        values: [[agencyMonthlyQuery]],
-      },
-      {
-        range: `${sheetName}!D11:F11`,
-        values: [['日付', '会場', '日次平均']],
-      },
-      {
-        range: `${sheetName}!D12`,
-        values: [[venueDailyAverageQuery]],
-      },
+    const now = new Date();
+    const curYear = now.getFullYear();
+    const curMonth = now.getMonth() + 1;
+    const prevMonth = curMonth === 1 ? 12 : curMonth - 1;
+    const prevYear = curMonth === 1 ? curYear - 1 : curYear;
+    const curLabel = `${curYear}年${curMonth}月`;
+    const prevLabel = `${prevYear}年${prevMonth}月`;
+
+    const curRecs = payload.records.filter((r) => {
+      const d = new Date(r.date);
+      return d.getFullYear() === curYear && d.getMonth() + 1 === curMonth;
+    });
+    const prevRecs = payload.records.filter((r) => {
+      const d = new Date(r.date);
+      return d.getFullYear() === prevYear && d.getMonth() + 1 === prevMonth;
+    });
+
+    // 代理店別当月累計
+    const agencyCurMap = new Map<string, number>();
+    curRecs.forEach((r) => agencyCurMap.set(r.agencyName, (agencyCurMap.get(r.agencyName) ?? 0) + r.amount));
+    const agencyCurRows: (string | number)[][] = Array.from(agencyCurMap.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, total]) => [name, total]);
+
+    // 代理店別前月累計
+    const agencyPrevMap = new Map<string, number>();
+    prevRecs.forEach((r) => agencyPrevMap.set(r.agencyName, (agencyPrevMap.get(r.agencyName) ?? 0) + r.amount));
+    const agencyPrevRows: (string | number)[][] = Array.from(agencyPrevMap.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, total]) => [name, total]);
+
+    // 会場別 日次平均売上（全期間）
+    const venueMap = new Map<string, { sum: number; count: number }>();
+    payload.records.forEach((r) => {
+      const v = venueMap.get(r.venueName) ?? { sum: 0, count: 0 };
+      v.sum += r.amount;
+      v.count += 1;
+      venueMap.set(r.venueName, v);
+    });
+    const venueRows: (string | number)[][] = Array.from(venueMap.entries())
+      .map(([name, { sum, count }]) => [name, Math.round(sum / count), count])
+      .sort((a, b) => (b[1] as number) - (a[1] as number));
+
+    // イベント別 日次売上明細（当月、日付×会場×代理店）
+    const eventKeyMap = new Map<string, { date: string; venue: string; agency: string; amount: number }>();
+    curRecs.forEach((r) => {
+      const key = `${r.date}|${r.venueName}|${r.agencyName}`;
+      const entry = eventKeyMap.get(key) ?? { date: r.date, venue: r.venueName, agency: r.agencyName, amount: 0 };
+      entry.amount += r.amount;
+      eventKeyMap.set(key, entry);
+    });
+    const eventRows: (string | number)[][] = Array.from(eventKeyMap.values())
+      .sort((a, b) => a.date.localeCompare(b.date) || a.venue.localeCompare(b.venue))
+      .map(({ date, venue, agency, amount }) => [date, venue, agency, amount]);
+
+    const curTotal = agencyCurRows.reduce((s, r) => s + (r[1] as number), 0);
+
+    // シート2をクリアしてから書き込む
+    await sheets.spreadsheets.values.batchClear({
+      spreadsheetId,
+      requestBody: { ranges: [`${sheetName}!A1:Z200`] },
+    });
+
+    const summaryData = [
+      { range: `${sheetName}!A1`, values: [['売上集計レポート（月次管理用）']] },
+      { range: `${sheetName}!A2`, values: [[`最終同期: ${payload.syncedAt}`]] },
+      { range: `${sheetName}!A3`, values: [[`${curLabel} 合計`, curTotal]] },
+      { range: `${sheetName}!A5`, values: [[`■ 代理店別 累計売上（${curLabel}）`]] },
+      { range: `${sheetName}!A6`, values: [['代理店', '当月累計売上'], ...agencyCurRows] },
+      { range: `${sheetName}!D5`, values: [[`■ 代理店別 累計売上（${prevLabel}）`]] },
+      { range: `${sheetName}!D6`, values: [['代理店', '前月累計売上'], ...agencyPrevRows] },
+      { range: `${sheetName}!A28`, values: [['■ 会場別 日次平均売上（全期間）']] },
+      { range: `${sheetName}!A29`, values: [['会場', '日次平均', '入力件数'], ...venueRows] },
+      { range: `${sheetName}!D28`, values: [[`■ イベント別 日次売上（${curLabel}）`]] },
+      { range: `${sheetName}!D29`, values: [['日付', '会場', '代理店', '売上'], ...eventRows] },
     ];
 
     await sheets.spreadsheets.values.batchUpdate({
       spreadsheetId,
       valueInputOption: 'USER_ENTERED',
-      requestBody: {
-        data: dashboardUpdates,
-      },
+      requestBody: { data: summaryData },
     });
-    console.info('[googleSheets] step dashboard_written');
-    console.info('[googleSheets] step syncedAt_written', { syncedAt: payload.syncedAt });
-
-    // --- Sheet 2（集計レポートシート）への書き込み ---
-    // シート名で検索（gid依存なし）、なければ新規作成
-    const SUMMARY2_CANDIDATE_NAMES = ['シート2', 'Sheet2', '集計2', '集計'];
-    const sheetsList: sheets_v4.Schema$Sheet[] = spreadsheet.data.sheets ?? [];
-    const existingSheetNames = new Set(sheetsList.map((s) => s.properties?.title ?? ''));
-
-    let summary2Name: string | null =
-      SUMMARY2_CANDIDATE_NAMES.find((name) => existingSheetNames.has(name)) ?? null;
-
-    if (!summary2Name) {
-      const createRes = await sheets.spreadsheets.batchUpdate({
-        spreadsheetId,
-        requestBody: { requests: [{ addSheet: { properties: { title: 'シート2' } } }] },
-      });
-      summary2Name = createRes.data.replies?.[0]?.addSheet?.properties?.title ?? 'シート2';
-      console.info('[googleSheets] sheet2 created', { summary2Name });
-    } else {
-      console.info('[googleSheets] sheet2 found', { summary2Name });
-    }
-
-    if (summary2Name) {
-      // 代理店別当月累計
-      const agencyCurrentMonthQuery =
-        `=QUERY(SalesRaw!A:D,"select C, sum(D) where A >= date '"&TEXT(EOMONTH(TODAY(),-1)+1,"yyyy-mm-dd")&"' and A <= date '"&TEXT(EOMONTH(TODAY(),0),"yyyy-mm-dd")&"' group by C order by sum(D) desc label C '代理店', sum(D) '当月累計売上'",1)`;
-
-      // 代理店別前月累計
-      const agencyPrevMonthQuery =
-        `=QUERY(SalesRaw!A:D,"select C, sum(D) where A >= date '"&TEXT(EOMONTH(TODAY(),-2)+1,"yyyy-mm-dd")&"' and A <= date '"&TEXT(EOMONTH(TODAY(),-1),"yyyy-mm-dd")&"' group by C order by sum(D) desc label C '代理店', sum(D) '前月累計売上'",1)`;
-
-      // 会場別日次平均売上
-      const venueAverageQuery =
-        `=QUERY(SalesRaw!A:D,"select B, avg(D), count(D) where B is not null group by B order by avg(D) desc label B '会場', avg(D) '日次平均売上', count(D) '入力件数'",1)`;
-
-      // イベント別（会場×代理店×日付）売上明細（当月）
-      const eventDailyQuery =
-        `=QUERY(SalesRaw!A:D,"select A, B, C, sum(D) where A >= date '"&TEXT(EOMONTH(TODAY(),-1)+1,"yyyy-mm-dd")&"' and A <= date '"&TEXT(EOMONTH(TODAY(),0),"yyyy-mm-dd")&"' group by A, B, C order by A asc, B asc label A '日付', B '会場', C '代理店', sum(D) '売上'",1)`;
-
-      const sheet2Updates = [
-        { range: `${summary2Name}!A1`, values: [['売上集計レポート（月次管理用）']] },
-        { range: `${summary2Name}!A2`, values: [[`最終同期: ${payload.syncedAt}`]] },
-        { range: `${summary2Name}!A4`, values: [['■ 代理店別 月次累計売上（当月）']] },
-        { range: `${summary2Name}!A5`, values: [[agencyCurrentMonthQuery]] },
-        { range: `${summary2Name}!D4`, values: [['■ 代理店別 月次累計売上（前月）']] },
-        { range: `${summary2Name}!D5`, values: [[agencyPrevMonthQuery]] },
-        { range: `${summary2Name}!A28`, values: [['■ 会場別 日次平均売上（全期間）']] },
-        { range: `${summary2Name}!A29`, values: [[venueAverageQuery]] },
-        { range: `${summary2Name}!D28`, values: [['■ イベント別 日次売上明細（当月）']] },
-        { range: `${summary2Name}!D29`, values: [[eventDailyQuery]] },
-      ];
-
-      await sheets.spreadsheets.values.batchUpdate({
-        spreadsheetId,
-        valueInputOption: 'USER_ENTERED',
-        requestBody: { data: sheet2Updates },
-      });
-      console.info('[googleSheets] step sheet2_written', { sheet2Name: summary2Name });
-    }
+    console.info('[googleSheets] step summary_written', { sheetName, agencyCount: agencyCurRows.length, venueCount: venueRows.length });
 
     return { spreadsheetTitle, sheetCount };
   } catch (error) {
