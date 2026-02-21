@@ -41,6 +41,9 @@ type EditingSale = {
   eventTitle: string;
 };
 
+type AgencyOption = { id: string; name: string };
+type EventOption = { id: string; title: string; agencyId: string; startDate: string; endDate: string };
+
 const formatMonthValue = (year: number, month: number) => `${year}-${month.toString().padStart(2, '0')}`;
 
 export default function AdminSalesManagement() {
@@ -58,6 +61,16 @@ export default function AdminSalesManagement() {
   const [editAmount, setEditAmount] = useState('');
   const [editDate, setEditDate] = useState('');
   const [saving, setSaving] = useState(false);
+
+  // 新規売上登録用
+  const [allAgencies, setAllAgencies] = useState<AgencyOption[]>([]);
+  const [allEvents, setAllEvents] = useState<EventOption[]>([]);
+  const [newAgencyId, setNewAgencyId] = useState('');
+  const [newEventId, setNewEventId] = useState('');
+  const [newDate, setNewDate] = useState('');
+  const [newAmount, setNewAmount] = useState('');
+  const [newSaving, setNewSaving] = useState(false);
+  const [showNewForm, setShowNewForm] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
@@ -86,6 +99,13 @@ export default function AdminSalesManagement() {
   useEffect(() => {
     fetchData();
   }, [year, month, agencyFilter]);
+
+  useEffect(() => {
+    Promise.all([fetch('/api/agencies'), fetch('/api/events')]).then(async ([agRes, evRes]) => {
+      if (agRes.ok) setAllAgencies(await agRes.json());
+      if (evRes.ok) setAllEvents(await evRes.json());
+    });
+  }, []);
 
   const agencies = data?.agencies ?? [];
 
@@ -208,6 +228,42 @@ export default function AdminSalesManagement() {
     setMonth(nextMonth);
   };
 
+  const filteredNewEvents = useMemo(() => {
+    if (!newAgencyId) return allEvents;
+    return allEvents.filter((e) => e.agencyId === newAgencyId);
+  }, [allEvents, newAgencyId]);
+
+  const handleNewSaleSubmit = async () => {
+    if (!newEventId || !newDate || !newAmount) {
+      setMessage('イベント・日付・金額は必須です。');
+      return;
+    }
+    const amountValue = Number(newAmount);
+    if (!Number.isFinite(amountValue) || amountValue < 0) {
+      setMessage('売上額は0以上の数値で入力してください。');
+      return;
+    }
+    setNewSaving(true);
+    setMessage(null);
+    const response = await fetch('/api/sales', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ eventId: newEventId, date: newDate, amount: amountValue }),
+    });
+    const body = await response.json().catch(() => null);
+    setNewSaving(false);
+    if (!response.ok) {
+      setMessage(body?.message ?? '売上の登録に失敗しました。');
+      return;
+    }
+    setMessage('売上を登録しました。');
+    setNewEventId('');
+    setNewDate('');
+    setNewAmount('');
+    setShowNewForm(false);
+    fetchData();
+  };
+
   return (
     <section className="bg-slate-900/70 border border-slate-800 p-6 rounded-lg space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -254,6 +310,79 @@ export default function AdminSalesManagement() {
           {message}
         </div>
       ) : null}
+
+      {/* 新規売上登録 */}
+      <div className="border border-slate-700 rounded-lg p-4 bg-slate-950/30 space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-slate-100">新規売上登録</h3>
+          <button
+            type="button"
+            onClick={() => setShowNewForm((prev) => !prev)}
+            className="text-xs border border-slate-600 px-3 py-1 rounded text-slate-300 hover:text-white"
+          >
+            {showNewForm ? '閉じる' : '＋ 売上を登録'}
+          </button>
+        </div>
+
+        {showNewForm ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label className="block text-xs text-slate-300">
+              代理店
+              <select
+                value={newAgencyId}
+                onChange={(e) => { setNewAgencyId(e.target.value); setNewEventId(''); }}
+                className="mt-1 w-full bg-slate-950/40 border border-slate-700 rounded px-3 py-2 text-slate-100 text-sm"
+              >
+                <option value="">すべて</option>
+                {allAgencies.map((ag) => (
+                  <option key={ag.id} value={ag.id}>{ag.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-xs text-slate-300">
+              イベント
+              <select
+                value={newEventId}
+                onChange={(e) => setNewEventId(e.target.value)}
+                className="mt-1 w-full bg-slate-950/40 border border-slate-700 rounded px-3 py-2 text-slate-100 text-sm"
+              >
+                <option value="">選択してください</option>
+                {filteredNewEvents.map((ev) => (
+                  <option key={ev.id} value={ev.id}>{ev.title}</option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-xs text-slate-300">
+              売上日付
+              <input
+                type="date"
+                value={newDate}
+                onChange={(e) => setNewDate(e.target.value)}
+                className="mt-1 w-full bg-slate-950/40 border border-slate-700 rounded px-3 py-2 text-slate-100 text-sm"
+              />
+            </label>
+            <label className="block text-xs text-slate-300">
+              日次売上額
+              <input
+                type="number"
+                value={newAmount}
+                onChange={(e) => setNewAmount(e.target.value)}
+                className="mt-1 w-full bg-slate-950/40 border border-slate-700 rounded px-3 py-2 text-slate-100 text-sm"
+              />
+            </label>
+            <div className="sm:col-span-2 flex justify-end">
+              <button
+                type="button"
+                onClick={handleNewSaleSubmit}
+                disabled={newSaving}
+                className="text-sm bg-indigo-500 text-white px-4 py-2 rounded disabled:opacity-50"
+              >
+                {newSaving ? '登録中...' : '売上を登録'}
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </div>
 
       {loading ? <div className="text-sm text-slate-400">読み込み中...</div> : null}
 

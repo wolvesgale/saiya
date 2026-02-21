@@ -354,6 +354,53 @@ export async function syncSalesToSheets(payload: SyncSalesPayload): Promise<Sync
     console.info('[googleSheets] step dashboard_written');
     console.info('[googleSheets] step syncedAt_written', { syncedAt: payload.syncedAt });
 
+    // --- Sheet 2（gid=1099607175）への集計レポート書き込み ---
+    const SUMMARY2_GID = 1099607175;
+    const summary2Sheet = (spreadsheet.data.sheets ?? []).find(
+      (s: sheets_v4.Schema$Sheet) => s.properties?.sheetId === SUMMARY2_GID,
+    );
+    const summary2Name = summary2Sheet?.properties?.title ?? null;
+
+    if (summary2Name) {
+      // 代理店別当月累計
+      const agencyCurrentMonthQuery =
+        `=QUERY(SalesRaw!A:D,"select C, sum(D) where A >= date '"&TEXT(EOMONTH(TODAY(),-1)+1,"yyyy-mm-dd")&"' and A <= date '"&TEXT(EOMONTH(TODAY(),0),"yyyy-mm-dd")&"' group by C order by sum(D) desc label C '代理店', sum(D) '当月累計売上'",1)`;
+
+      // 代理店別前月累計
+      const agencyPrevMonthQuery =
+        `=QUERY(SalesRaw!A:D,"select C, sum(D) where A >= date '"&TEXT(EOMONTH(TODAY(),-2)+1,"yyyy-mm-dd")&"' and A <= date '"&TEXT(EOMONTH(TODAY(),-1),"yyyy-mm-dd")&"' group by C order by sum(D) desc label C '代理店', sum(D) '前月累計売上'",1)`;
+
+      // 会場別日次平均売上
+      const venueAverageQuery =
+        `=QUERY(SalesRaw!A:D,"select B, avg(D), count(D) where B is not null group by B order by avg(D) desc label B '会場', avg(D) '日次平均売上', count(D) '入力件数'",1)`;
+
+      // イベント別（会場×代理店×日付）売上明細（当月）
+      const eventDailyQuery =
+        `=QUERY(SalesRaw!A:D,"select A, B, C, sum(D) where A >= date '"&TEXT(EOMONTH(TODAY(),-1)+1,"yyyy-mm-dd")&"' and A <= date '"&TEXT(EOMONTH(TODAY(),0),"yyyy-mm-dd")&"' group by A, B, C order by A asc, B asc label A '日付', B '会場', C '代理店', sum(D) '売上'",1)`;
+
+      const sheet2Updates = [
+        { range: `${summary2Name}!A1`, values: [['売上集計レポート（月次管理用）']] },
+        { range: `${summary2Name}!A2`, values: [[`最終同期: ${payload.syncedAt}`]] },
+        { range: `${summary2Name}!A4`, values: [['■ 代理店別 月次累計売上（当月）']] },
+        { range: `${summary2Name}!A5`, values: [[agencyCurrentMonthQuery]] },
+        { range: `${summary2Name}!D4`, values: [['■ 代理店別 月次累計売上（前月）']] },
+        { range: `${summary2Name}!D5`, values: [[agencyPrevMonthQuery]] },
+        { range: `${summary2Name}!A28`, values: [['■ 会場別 日次平均売上（全期間）']] },
+        { range: `${summary2Name}!A29`, values: [[venueAverageQuery]] },
+        { range: `${summary2Name}!D28`, values: [['■ イベント別 日次売上明細（当月）']] },
+        { range: `${summary2Name}!D29`, values: [[eventDailyQuery]] },
+      ];
+
+      await sheets.spreadsheets.values.batchUpdate({
+        spreadsheetId,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: { data: sheet2Updates },
+      });
+      console.info('[googleSheets] step sheet2_written', { sheet2Name: summary2Name });
+    } else {
+      console.warn('[googleSheets] sheet2 not found (gid=1099607175), skipping');
+    }
+
     return { spreadsheetTitle, sheetCount };
   } catch (error) {
     console.warn('[googleSheets] syncSalesToSheets failed', error);
