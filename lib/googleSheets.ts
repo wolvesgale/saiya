@@ -216,7 +216,7 @@ export async function syncSalesToSheets(payload: SyncSalesPayload): Promise<Sync
     console.info('[googleSheets] step spreadsheets_get_start');
     const spreadsheet = await sheets.spreadsheets.get({
       spreadsheetId,
-      fields: 'properties.title,sheets.properties.title',
+      fields: 'properties.title,sheets.properties.title,sheets.properties.sheetId',
     });
     const spreadsheetTitle = spreadsheet.data.properties?.title ?? '';
     const sheetCount = spreadsheet.data.sheets?.length ?? 0;

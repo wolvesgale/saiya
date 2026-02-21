@@ -233,6 +233,21 @@ export default function AdminSalesManagement() {
     return allEvents.filter((e) => e.agencyId === newAgencyId);
   }, [allEvents, newAgencyId]);
 
+  const [syncing, setSyncing] = useState(false);
+
+  const handleSyncSheets = async () => {
+    setSyncing(true);
+    setMessage(null);
+    const response = await fetch('/api/admin/sync-sheets', { method: 'POST' });
+    const body = await response.json().catch(() => null);
+    setSyncing(false);
+    if (!response.ok) {
+      setMessage(body?.message ?? 'スプシの同期に失敗しました。');
+      return;
+    }
+    setMessage(`スプレッドシートを更新しました（${body.records ?? 0}件）。`);
+  };
+
   const handleNewSaleSubmit = async () => {
     if (!newEventId || !newDate || !newAmount) {
       setMessage('イベント・日付・金額は必須です。');
@@ -272,6 +287,14 @@ export default function AdminSalesManagement() {
           <p className="text-xs text-slate-400">代理店 → イベント → 日次売上の順に展開して確認します。</p>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
+          <button
+            type="button"
+            onClick={handleSyncSheets}
+            disabled={syncing}
+            className="border border-emerald-600/60 px-3 py-1 rounded text-emerald-300 hover:text-emerald-100 disabled:opacity-50"
+          >
+            {syncing ? '同期中...' : 'スプシを更新'}
+          </button>
           <label className="flex items-center gap-2">
             <span>年月</span>
             <input
