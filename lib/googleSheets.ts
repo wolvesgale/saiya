@@ -216,7 +216,7 @@ export async function syncSalesToSheets(payload: SyncSalesPayload): Promise<Sync
     console.info('[googleSheets] step spreadsheets_get_start');
     const spreadsheet = await sheets.spreadsheets.get({
       spreadsheetId,
-      fields: 'properties.title,sheets.properties.title,sheets.properties.sheetId',
+      fields: 'properties.title,sheets(properties(title,sheetId))',
     });
     const spreadsheetTitle = spreadsheet.data.properties?.title ?? '';
     const sheetCount = spreadsheet.data.sheets?.length ?? 0;
@@ -356,10 +356,26 @@ export async function syncSalesToSheets(payload: SyncSalesPayload): Promise<Sync
 
     // --- Sheet 2（gid=1099607175）への集計レポート書き込み ---
     const SUMMARY2_GID = 1099607175;
-    const summary2Sheet = (spreadsheet.data.sheets ?? []).find(
-      (s: sheets_v4.Schema$Sheet) => s.properties?.sheetId === SUMMARY2_GID,
-    );
-    const summary2Name = summary2Sheet?.properties?.title ?? null;
+    const SUMMARY2_FALLBACK_NAMES = ['シート2', 'Sheet2', '集計2', '集計'];
+    const sheetsList: sheets_v4.Schema$Sheet[] = spreadsheet.data.sheets ?? [];
+
+    // gidで検索 → 名前で検索 → なければ作成
+    let summary2Name: string | null =
+      sheetsList.find((s) => s.properties?.sheetId === SUMMARY2_GID)?.properties?.title ??
+      sheetsList.find((s) => SUMMARY2_FALLBACK_NAMES.includes(s.properties?.title ?? ''))?.properties?.title ??
+      null;
+
+    if (!summary2Name) {
+      // シートが見つからない場合は新規作成
+      const createRes = await sheets.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: { requests: [{ addSheet: { properties: { title: 'シート2' } } }] },
+      });
+      summary2Name = createRes.data.replies?.[0]?.addSheet?.properties?.title ?? 'シート2';
+      console.info('[googleSheets] sheet2 created', { summary2Name });
+    } else {
+      console.info('[googleSheets] sheet2 found', { summary2Name });
+    }
 
     if (summary2Name) {
       // 代理店別当月累計
@@ -397,8 +413,6 @@ export async function syncSalesToSheets(payload: SyncSalesPayload): Promise<Sync
         requestBody: { data: sheet2Updates },
       });
       console.info('[googleSheets] step sheet2_written', { sheet2Name: summary2Name });
-    } else {
-      console.warn('[googleSheets] sheet2 not found (gid=1099607175), skipping');
     }
 
     return { spreadsheetTitle, sheetCount };
