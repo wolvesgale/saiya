@@ -71,7 +71,7 @@ export async function GET(request: Request) {
         venueName: venueMap.get(venueId) ?? venueId,
         total: value.total,
         count: value.count,
-        average: value.count ? value.total / value.count : 0,
+        average: value.count ? Math.floor(value.total / value.count) : 0,
       }))
       .sort((a, b) => a.venueName.localeCompare(b.venueName, 'ja-JP'));
 
