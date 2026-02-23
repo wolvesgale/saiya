@@ -326,7 +326,7 @@
     </div>
   </div>
 
-  <div class="pn">1 / 4</div>
+  <div class="pn">1 / 5</div>
 </div>
 
 
@@ -454,7 +454,7 @@
 
   </div>
 
-  <div class="pn">2 / 4</div>
+  <div class="pn">2 / 5</div>
 </div>
 
 
@@ -611,7 +611,7 @@
     </div>
   </div>
 
-  <div class="pn">3 / 4</div>
+  <div class="pn">3 / 5</div>
 </div>
 
 
@@ -762,7 +762,299 @@
     </div>
   </div>
 
-  <div class="pn">4 / 4</div>
+  <div class="pn">4 / 5</div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════
+     PAGE 5 — UI Gallery (実画面モックアップ)
+══════════════════════════════════════════════ -->
+<div class="page">
+  <div class="page-label">UI Gallery</div>
+  <h2 style="margin-bottom:10px;">実装画面ギャラリー — 実際の Admin UI より抜粋（個人情報マスク済み）</h2>
+
+  <div style="display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; gap:10px; height:calc(100% - 52px);">
+
+    <!-- ① イベント管理 -->
+    <div class="card" style="padding:0; overflow:hidden; display:flex; flex-direction:column;">
+      <!-- Mock title bar -->
+      <div style="background:#0f172a; border-bottom:1px solid var(--border); padding:6px 10px; display:flex; align-items:center; gap:6px; flex-shrink:0;">
+        <span style="font-size:9px; font-weight:700; color:var(--accent); letter-spacing:0.08em; text-transform:uppercase;">イベント管理</span>
+        <span class="badge b-indigo" style="font-size:9px; margin-left:auto;">Admin</span>
+      </div>
+      <!-- Toolbar row -->
+      <div style="background:#16213a; border-bottom:1px solid var(--border); padding:5px 10px; display:flex; gap:6px; align-items:center; flex-shrink:0;">
+        <div style="background:var(--surface2); border:1px solid var(--border); border-radius:4px; padding:2px 7px; font-size:9px; color:var(--text3); display:flex; align-items:center; gap:4px;">
+          <span style="color:var(--text4);">代理店</span>
+          <span style="color:var(--text);">A社</span>
+          <span style="color:var(--text4); font-size:8px;">▼</span>
+        </div>
+        <div style="background:var(--surface2); border:1px solid var(--border); border-radius:4px; padding:2px 7px; font-size:9px; color:var(--text3); display:flex; align-items:center; gap:4px;">
+          <span style="color:var(--text4);">期間</span>
+          <span style="color:var(--text);">2025/02</span>
+          <span style="color:var(--text4); font-size:8px;">▼</span>
+        </div>
+        <div style="margin-left:auto; background:var(--accent-d); border-radius:4px; padding:2px 8px; font-size:9px; color:#fff; font-weight:600;">＋ 新規作成</div>
+      </div>
+      <!-- Table -->
+      <div style="flex:1; overflow:hidden;">
+        <table style="font-size:9.5px;">
+          <thead>
+            <tr style="background:#0f172a;">
+              <th style="padding:4px 6px; font-size:9px;">代理店</th>
+              <th style="padding:4px 6px; font-size:9px;">会場</th>
+              <th style="padding:4px 6px; font-size:9px;">仲介</th>
+              <th style="padding:4px 6px; font-size:9px;">開始</th>
+              <th style="padding:4px 6px; font-size:9px;">終了</th>
+              <th style="padding:4px 6px; font-size:9px;">状態</th>
+              <th style="padding:4px 6px; font-size:9px;"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="padding:4px 6px;"><span style="background:#312e81; color:#a5b4fc; padding:1px 5px; border-radius:3px; font-size:9px; font-weight:600;">A社</span></td>
+              <td style="padding:4px 6px; color:var(--text);">B店</td>
+              <td style="padding:4px 6px; color:var(--text3); font-size:9px;">E社</td>
+              <td style="padding:4px 6px; color:var(--text3);">02/01</td>
+              <td style="padding:4px 6px; color:var(--text3);">02/15</td>
+              <td style="padding:4px 6px;"><span style="background:#064e3b; color:#6ee7b7; padding:1px 5px; border-radius:3px; font-size:9px;">開催中</span></td>
+              <td style="padding:4px 6px; color:var(--accent); font-size:9px; cursor:pointer;">詳細</td>
+            </tr>
+            <tr style="background:#0f172a33;">
+              <td style="padding:4px 6px;"><span style="background:#312e81; color:#a5b4fc; padding:1px 5px; border-radius:3px; font-size:9px; font-weight:600;">A社</span></td>
+              <td style="padding:4px 6px; color:var(--text);">C店</td>
+              <td style="padding:4px 6px; color:var(--text3); font-size:9px;">E社</td>
+              <td style="padding:4px 6px; color:var(--text3);">02/10</td>
+              <td style="padding:4px 6px; color:var(--text3);">02/20</td>
+              <td style="padding:4px 6px;"><span style="background:#064e3b; color:#6ee7b7; padding:1px 5px; border-radius:3px; font-size:9px;">開催中</span></td>
+              <td style="padding:4px 6px; color:var(--accent); font-size:9px; cursor:pointer;">詳細</td>
+            </tr>
+            <tr>
+              <td style="padding:4px 6px;"><span style="background:#312e81; color:#a5b4fc; padding:1px 5px; border-radius:3px; font-size:9px; font-weight:600;">A社</span></td>
+              <td style="padding:4px 6px; color:var(--text);">D店</td>
+              <td style="padding:4px 6px; color:var(--text3); font-size:9px;">E社</td>
+              <td style="padding:4px 6px; color:var(--text3);">02/18</td>
+              <td style="padding:4px 6px; color:var(--text3);">02/28</td>
+              <td style="padding:4px 6px;"><span style="background:#1c3a5e; color:#93c5fd; padding:1px 5px; border-radius:3px; font-size:9px;">開催前</span></td>
+              <td style="padding:4px 6px; color:var(--accent); font-size:9px; cursor:pointer;">詳細</td>
+            </tr>
+            <tr style="background:#0f172a33;">
+              <td style="padding:4px 6px;"><span style="background:#312e81; color:#a5b4fc; padding:1px 5px; border-radius:3px; font-size:9px; font-weight:600;">A社</span></td>
+              <td style="padding:4px 6px; color:var(--text);">B店</td>
+              <td style="padding:4px 6px; color:var(--text3); font-size:9px;">E社</td>
+              <td style="padding:4px 6px; color:var(--text3);">01/10</td>
+              <td style="padding:4px 6px; color:var(--text3);">01/20</td>
+              <td style="padding:4px 6px;"><span style="background:#1e293b; color:#64748b; padding:1px 5px; border-radius:3px; font-size:9px;">終了</span></td>
+              <td style="padding:4px 6px; color:var(--accent); font-size:9px; cursor:pointer;">詳細</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ② 売上管理 -->
+    <div class="card" style="padding:0; overflow:hidden; display:flex; flex-direction:column;">
+      <div style="background:#0f172a; border-bottom:1px solid var(--border); padding:6px 10px; display:flex; align-items:center; gap:6px; flex-shrink:0;">
+        <span style="font-size:9px; font-weight:700; color:var(--green); letter-spacing:0.08em; text-transform:uppercase;">売上管理</span>
+        <span class="badge b-indigo" style="font-size:9px; margin-left:auto;">Admin</span>
+      </div>
+      <!-- Summary row -->
+      <div style="background:#16213a; border-bottom:1px solid var(--border); padding:6px 10px; display:flex; gap:8px; flex-shrink:0;">
+        <div style="background:#0f172a; border:1px solid var(--border); border-left:2px solid var(--green); border-radius:5px; padding:4px 8px; flex:1;">
+          <div style="font-size:8.5px; color:var(--text4);">今月売上合計</div>
+          <div style="font-size:12px; font-weight:700; color:var(--green);">¥ 1,248,000</div>
+        </div>
+        <div style="background:#0f172a; border:1px solid var(--border); border-left:2px solid var(--amber); border-radius:5px; padding:4px 8px; flex:1;">
+          <div style="font-size:8.5px; color:var(--text4);">未入力件数</div>
+          <div style="font-size:12px; font-weight:700; color:var(--amber);">2 件</div>
+        </div>
+        <div style="background:#0f172a; border:1px solid var(--border); border-left:2px solid var(--accent); border-radius:5px; padding:4px 8px; flex:1;">
+          <div style="font-size:8.5px; color:var(--text4);">開催中イベント</div>
+          <div style="font-size:12px; font-weight:700; color:var(--accent);">3 件</div>
+        </div>
+      </div>
+      <!-- Table -->
+      <div style="flex:1; overflow:hidden;">
+        <table style="font-size:9.5px;">
+          <thead>
+            <tr style="background:#0f172a;">
+              <th style="padding:4px 6px; font-size:9px;">日付</th>
+              <th style="padding:4px 6px; font-size:9px;">代理店</th>
+              <th style="padding:4px 6px; font-size:9px;">会場</th>
+              <th style="padding:4px 6px; font-size:9px;">売上</th>
+              <th style="padding:4px 6px; font-size:9px;">担当者</th>
+              <th style="padding:4px 6px; font-size:9px;">状態</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="padding:4px 6px; color:var(--text3); font-size:9px;">02/14</td>
+              <td style="padding:4px 6px;"><span style="color:#a5b4fc; font-size:9px;">A社</span></td>
+              <td style="padding:4px 6px; color:var(--text);">B店</td>
+              <td style="padding:4px 6px; color:var(--green); font-weight:600;">¥ 128,000</td>
+              <td style="padding:4px 6px; color:var(--text4); font-size:9px;">担当 ██</td>
+              <td style="padding:4px 6px;"><span style="background:#064e3b; color:#6ee7b7; padding:1px 4px; border-radius:3px; font-size:8px;">入力済</span></td>
+            </tr>
+            <tr style="background:#0f172a33;">
+              <td style="padding:4px 6px; color:var(--text3); font-size:9px;">02/14</td>
+              <td style="padding:4px 6px;"><span style="color:#a5b4fc; font-size:9px;">A社</span></td>
+              <td style="padding:4px 6px; color:var(--text);">C店</td>
+              <td style="padding:4px 6px; color:var(--green); font-weight:600;">¥ 95,000</td>
+              <td style="padding:4px 6px; color:var(--text4); font-size:9px;">担当 ██</td>
+              <td style="padding:4px 6px;"><span style="background:#064e3b; color:#6ee7b7; padding:1px 4px; border-radius:3px; font-size:8px;">入力済</span></td>
+            </tr>
+            <tr>
+              <td style="padding:4px 6px; color:var(--text3); font-size:9px;">02/14</td>
+              <td style="padding:4px 6px;"><span style="color:#a5b4fc; font-size:9px;">A社</span></td>
+              <td style="padding:4px 6px; color:var(--text);">D店</td>
+              <td style="padding:4px 6px; color:var(--red);">—</td>
+              <td style="padding:4px 6px; color:var(--text4); font-size:9px;">—</td>
+              <td style="padding:4px 6px;"><span style="background:#450a0a; color:#fca5a5; padding:1px 4px; border-radius:3px; font-size:8px;">未入力</span></td>
+            </tr>
+            <tr style="background:#0f172a33;">
+              <td style="padding:4px 6px; color:var(--text3); font-size:9px;">02/13</td>
+              <td style="padding:4px 6px;"><span style="color:#a5b4fc; font-size:9px;">A社</span></td>
+              <td style="padding:4px 6px; color:var(--text);">B店</td>
+              <td style="padding:4px 6px; color:var(--green); font-weight:600;">¥ 142,500</td>
+              <td style="padding:4px 6px; color:var(--text4); font-size:9px;">担当 ██</td>
+              <td style="padding:4px 6px;"><span style="background:#064e3b; color:#6ee7b7; padding:1px 4px; border-radius:3px; font-size:8px;">入力済</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ③ 売上集計レポート -->
+    <div class="card" style="padding:0; overflow:hidden; display:flex; flex-direction:column;">
+      <div style="background:#0f172a; border-bottom:1px solid var(--border); padding:6px 10px; display:flex; align-items:center; gap:6px; flex-shrink:0;">
+        <span style="font-size:9px; font-weight:700; color:var(--cyan); letter-spacing:0.08em; text-transform:uppercase;">売上集計 / レポート</span>
+        <span class="badge b-indigo" style="font-size:9px; margin-left:auto;">Admin</span>
+      </div>
+      <!-- Period tabs -->
+      <div style="background:#16213a; border-bottom:1px solid var(--border); padding:4px 10px; display:flex; gap:4px; flex-shrink:0;">
+        <div style="background:var(--accent-d); color:#fff; border-radius:4px; padding:2px 8px; font-size:9px; font-weight:600;">週次</div>
+        <div style="color:var(--text4); border-radius:4px; padding:2px 8px; font-size:9px;">月次</div>
+        <div style="color:var(--text4); border-radius:4px; padding:2px 8px; font-size:9px;">会場別</div>
+        <div style="margin-left:auto; background:#082f49; color:#a5f3fc; border-radius:4px; padding:2px 8px; font-size:9px; font-weight:600;">📊 スプシ更新</div>
+      </div>
+      <!-- Content -->
+      <div style="flex:1; overflow:hidden; padding:8px;">
+        <!-- Mini bar chart -->
+        <div style="font-size:9px; color:var(--text4); margin-bottom:5px;">週次売上推移（直近4週）</div>
+        <div style="display:flex; align-items:flex-end; gap:4px; height:48px; margin-bottom:8px;">
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:2px;">
+            <div style="background:var(--accent-d); border-radius:2px 2px 0 0; width:100%; height:32px;"></div>
+            <div style="font-size:8px; color:var(--text4);">1/27</div>
+          </div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:2px;">
+            <div style="background:var(--accent-d); border-radius:2px 2px 0 0; width:100%; height:40px;"></div>
+            <div style="font-size:8px; color:var(--text4);">2/3</div>
+          </div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:2px;">
+            <div style="background:var(--accent); border-radius:2px 2px 0 0; width:100%; height:28px;"></div>
+            <div style="font-size:8px; color:var(--text4);">2/10</div>
+          </div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:2px;">
+            <div style="background:var(--green); border-radius:2px 2px 0 0; width:100%; height:44px;"></div>
+            <div style="font-size:8px; color:var(--text4);">2/17</div>
+          </div>
+        </div>
+        <!-- Breakdown table -->
+        <table style="font-size:9px;">
+          <thead>
+            <tr style="background:#0f172a;">
+              <th style="padding:3px 6px; font-size:8.5px;">会場</th>
+              <th style="padding:3px 6px; font-size:8.5px; text-align:right;">今週</th>
+              <th style="padding:3px 6px; font-size:8.5px; text-align:right;">先週比</th>
+              <th style="padding:3px 6px; font-size:8.5px; text-align:right;">累計</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="padding:3px 6px; color:var(--text);">B店</td>
+              <td style="padding:3px 6px; color:var(--green); text-align:right; font-weight:600;">¥ 270,500</td>
+              <td style="padding:3px 6px; color:var(--green); text-align:right; font-size:8.5px;">▲ 12%</td>
+              <td style="padding:3px 6px; color:var(--text3); text-align:right;">¥ 1,082,000</td>
+            </tr>
+            <tr style="background:#0f172a33;">
+              <td style="padding:3px 6px; color:var(--text);">C店</td>
+              <td style="padding:3px 6px; color:var(--green); text-align:right; font-weight:600;">¥ 190,000</td>
+              <td style="padding:3px 6px; color:var(--red); text-align:right; font-size:8.5px;">▼ 5%</td>
+              <td style="padding:3px 6px; color:var(--text3); text-align:right;">¥ 760,000</td>
+            </tr>
+            <tr>
+              <td style="padding:3px 6px; color:var(--text);">D店</td>
+              <td style="padding:3px 6px; color:var(--amber); text-align:right;">—</td>
+              <td style="padding:3px 6px; color:var(--text4); text-align:right; font-size:8.5px;">開催前</td>
+              <td style="padding:3px 6px; color:var(--text3); text-align:right;">¥ 340,000</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ④ 会場詳細フォーム -->
+    <div class="card" style="padding:0; overflow:hidden; display:flex; flex-direction:column;">
+      <div style="background:#0f172a; border-bottom:1px solid var(--border); padding:6px 10px; display:flex; align-items:center; gap:6px; flex-shrink:0;">
+        <span style="font-size:9px; font-weight:700; color:var(--amber); letter-spacing:0.08em; text-transform:uppercase;">会場詳細 / 裏方情報</span>
+        <span class="badge b-green" style="font-size:9px; margin-left:auto;">B店</span>
+      </div>
+      <div style="flex:1; overflow:hidden; padding:8px; display:flex; gap:8px;">
+        <!-- Left: Form fields -->
+        <div style="flex:1; display:flex; flex-direction:column; gap:5px;">
+          <div style="background:#0f172a; border-radius:5px; padding:5px 7px;">
+            <div style="font-size:8.5px; color:var(--text4); margin-bottom:1px;">営業時間</div>
+            <div style="font-size:10px; color:var(--text);">10:00 〜 20:00</div>
+          </div>
+          <div style="background:#0f172a; border-radius:5px; padding:5px 7px;">
+            <div style="font-size:8.5px; color:var(--text4); margin-bottom:1px;">搬入時間</div>
+            <div style="font-size:10px; color:var(--text);">08:30 〜 09:30</div>
+          </div>
+          <div style="background:#0f172a; border-radius:5px; padding:5px 7px;">
+            <div style="font-size:8.5px; color:var(--text4); margin-bottom:1px;">ゴミ出しルール</div>
+            <div style="font-size:10px; color:var(--text);">閉店後 場内ゴミ箱へ</div>
+          </div>
+          <div style="background:#0f172a; border-radius:5px; padding:5px 7px;">
+            <div style="font-size:8.5px; color:var(--text4); margin-bottom:1px;">現金規定</div>
+            <div style="font-size:10px; color:var(--text);">毎日精算・金庫預かり可</div>
+          </div>
+          <div style="background:#0f172a; border-radius:5px; padding:5px 7px;">
+            <div style="font-size:8.5px; color:var(--text4); margin-bottom:1px;">仲介業者</div>
+            <div style="font-size:10px; color:var(--accent);">E社</div>
+          </div>
+        </div>
+        <!-- Right: Memo + Attachment -->
+        <div style="flex:1; display:flex; flex-direction:column; gap:5px;">
+          <div style="background:#0f172a; border-radius:5px; padding:5px 7px; flex:1;">
+            <div style="font-size:8.5px; color:var(--text4); margin-bottom:3px;">担当者メモ</div>
+            <div style="font-size:9.5px; color:var(--text3); line-height:1.6;">
+              <span style="color:var(--accent); font-size:8.5px;">A社 / 02/01 09:12</span><br>
+              担当者連絡先: ██-████-████<br>
+              休憩スペースは2F 関係者専用<br>
+              <span style="color:var(--accent); font-size:8.5px; margin-top:3px; display:block;">A社 / 01/15 11:40</span>
+              駐車場: 館内スタッフ P 利用可
+            </div>
+          </div>
+          <div style="background:#0f172a; border-radius:5px; padding:5px 7px; flex-shrink:0;">
+            <div style="font-size:8.5px; color:var(--text4); margin-bottom:4px;">添付ファイル</div>
+            <div style="display:flex; flex-direction:column; gap:3px;">
+              <div style="display:flex; align-items:center; gap:4px; background:var(--surface2); border-radius:3px; padding:2px 6px;">
+                <span style="font-size:10px;">📄</span>
+                <span style="font-size:9px; color:var(--cyan);">搬入案内_B店.pdf</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:4px; background:var(--surface2); border-radius:3px; padding:2px 6px;">
+                <span style="font-size:10px;">🖼</span>
+                <span style="font-size:9px; color:var(--cyan);">フロアマップ.jpg</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="pn">5 / 5</div>
 </div>
 
 </body>
