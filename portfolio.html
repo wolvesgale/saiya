@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>催事販売管理 SaaS — Portfolio</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0f172a;
+      --surface:  #1e293b;
+      --surface2: #243044;
+      --border:   #334155;
+      --border2:  #475569;
+      --accent:   #818cf8;
+      --accent-d: #4f46e5;
+      --green:    #34d399;
+      --amber:    #fbbf24;
+      --red:      #f87171;
+      --cyan:     #67e8f9;
+      --text:     #f8fafc;
+      --text2:    #cbd5e1;
+      --text3:    #94a3b8;
+      --text4:    #64748b;
+    }
+
+    body {
+      font-family: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', 'Noto Sans JP',
+                   'Yu Gothic Medium', 'Meiryo', 'Segoe UI', sans-serif;
+      background: #1a1a2e;
+      color: var(--text);
+      line-height: 1.6;
+      font-size: 13px;
+    }
+
+    /* ── Page container ── */
+    .page {
+      width: 297mm;
+      height: 210mm;
+      padding: 13mm 16mm 12mm;
+      margin: 0 auto 6px;
+      background: var(--bg);
+      position: relative;
+      overflow: hidden;
+    }
+
+    @media print {
+      body { background: var(--bg); }
+      .page { margin: 0; break-after: page; page-break-after: always; }
+      @page { size: A4 landscape; margin: 0; }
+    }
+
+    /* ── Typography ── */
+    h1 { font-size: 24px; font-weight: 700; line-height: 1.2; letter-spacing: -0.02em; }
+    h2 { font-size: 16px; font-weight: 700; line-height: 1.3; }
+    h3 { font-size: 12px; font-weight: 700; line-height: 1.4; color: var(--text); }
+    p, li { font-size: 11px; color: var(--text2); line-height: 1.6; }
+    code {
+      font-family: 'Courier New', 'Consolas', monospace;
+      background: #0f172a;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 10px;
+      color: var(--cyan);
+    }
+
+    /* ── Label / Badge / Tag ── */
+    .page-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      margin-bottom: 5px;
+    }
+    .page-label::before {
+      content: '';
+      display: inline-block;
+      width: 3px;
+      height: 12px;
+      background: var(--accent);
+      border-radius: 2px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+    .b-indigo { background: #312e81; color: #a5b4fc; }
+    .b-green  { background: #064e3b; color: #6ee7b7; }
+    .b-amber  { background: #451a03; color: #fcd34d; }
+    .b-red    { background: #450a0a; color: #fca5a5; }
+    .b-slate  { background: #1e293b; color: #94a3b8; border: 1px dashed #475569; }
+    .b-cyan   { background: #082f49; color: #a5f3fc; }
+
+    .tag {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 500;
+      background: var(--surface2);
+      color: var(--text3);
+      border: 1px solid var(--border);
+    }
+
+    /* ── Card ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+    }
+    .card-dashed {
+      background: var(--surface);
+      border: 1px dashed var(--border2);
+      border-radius: 10px;
+      padding: 10px 14px;
+    }
+
+    /* ── Lists ── */
+    .ul { list-style: none; display: flex; flex-direction: column; gap: 3px; }
+    .ul li {
+      position: relative;
+      padding-left: 13px;
+      font-size: 11px;
+      color: var(--text2);
+    }
+    .ul li::before {
+      content: '–';
+      position: absolute;
+      left: 0;
+      color: var(--accent);
+      font-size: 10px;
+    }
+
+    /* ── Screenshot placeholder ── */
+    .img-ph {
+      background: var(--surface);
+      border: 1.5px dashed var(--border2);
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: var(--text4);
+      font-size: 10px;
+      text-align: center;
+      padding: 8px;
+      gap: 4px;
+    }
+    .img-ph .ico { font-size: 22px; opacity: 0.45; }
+
+    /* ── Entity mini-card ── */
+    .entity {
+      background: #0f172a;
+      border-radius: 6px;
+      padding: 7px 8px;
+      font-size: 10px;
+    }
+    .entity-title {
+      font-size: 11px;
+      font-weight: 700;
+      margin-bottom: 3px;
+    }
+    .entity-body { color: var(--text4); line-height: 1.6; font-family: 'Courier New', monospace; font-size: 10px; }
+
+    /* ── Page number ── */
+    .pn {
+      position: absolute;
+      bottom: 8mm;
+      right: 16mm;
+      font-size: 10px;
+      color: var(--text4);
+    }
+
+    /* ── Table ── */
+    table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    th { text-align: left; color: var(--text4); font-weight: 500; padding: 4px 8px; border-bottom: 1px solid var(--border); }
+    td { padding: 5px 8px; color: var(--text2); border-bottom: 1px solid var(--border); vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    tr:nth-child(even) td { background: #0f172a44; }
+
+    /* ── Arch boxes ── */
+    .arch-layer {
+      border-radius: 8px;
+      padding: 8px 12px;
+      margin-bottom: 5px;
+    }
+    .arch-arrow {
+      text-align: center;
+      font-size: 10px;
+      color: var(--text4);
+      margin: 2px 0;
+    }
+    .arch-box {
+      background: #0f172a;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 7px 10px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════
+     PAGE 1 — Product Overview
+══════════════════════════════════════════════ -->
+<div class="page">
+  <div class="page-label">Product Overview</div>
+
+  <div style="display:flex; gap:18px; height:calc(100% - 32px);">
+
+    <!-- ─ Left col ─ -->
+    <div style="flex:1.15; display:flex; flex-direction:column; gap:9px;">
+
+      <!-- Title -->
+      <div>
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
+          <h1>催事販売管理</h1>
+          <span class="badge b-indigo">マルチテナント SaaS</span>
+        </div>
+        <p style="color:var(--accent); font-size:14px; font-weight:600;">
+          催事の"裏方情報"をチームの資産に変える、売上ガバナンス付き管理プラットフォーム
+        </p>
+      </div>
+
+      <!-- Problem -->
+      <div class="card" style="border-left:3px solid var(--red);">
+        <div style="font-size:10px; font-weight:700; color:var(--red); letter-spacing:0.1em; text-transform:uppercase; margin-bottom:7px;">
+          ⚠ 解く課題
+        </div>
+        <div style="display:flex; flex-direction:column; gap:7px;">
+          <div style="display:flex; gap:9px; align-items:flex-start;">
+            <span class="badge b-red" style="white-space:nowrap; flex-shrink:0;">課題①</span>
+            <p>催事会場の搬入時間・現金規定・ゴミ出しルールが担当者の頭の中にしかなく、
+              <strong style="color:var(--text);">再開催のたびに調べ直し → 準備コスト増・ミス再発</strong></p>
+          </div>
+          <div style="display:flex; gap:9px; align-items:flex-start;">
+            <span class="badge b-red" style="white-space:nowrap; flex-shrink:0;">課題②</span>
+            <p>日次売上が未入力になりがちで、<strong style="color:var(--text);">手動督促が必要</strong>なため管理者工数が増える。締め時間を過ぎても誰も動かないケースが頻出</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Solution -->
+      <div class="card" style="border-left:3px solid var(--green); background:linear-gradient(135deg,#1e293b,#1a2e25);">
+        <div style="font-size:10px; font-weight:700; color:var(--green); letter-spacing:0.1em; text-transform:uppercase; margin-bottom:7px;">
+          ✓ 解決アプローチ
+        </div>
+        <div style="display:flex; flex-direction:column; gap:7px;">
+          <div style="display:flex; gap:9px; align-items:flex-start;">
+            <span class="badge b-green" style="white-space:nowrap; flex-shrink:0;">解決①</span>
+            <p>会場ごとの裏方情報をメモ・添付ファイルでデータ化。<strong style="color:var(--text);">次回開催時は即アクセスで準備完了</strong>、ノウハウが組織資産に</p>
+          </div>
+          <div style="display:flex; gap:9px; align-items:flex-start;">
+            <span class="badge b-green" style="white-space:nowrap; flex-shrink:0;">解決②</span>
+            <p><strong style="color:var(--text);">21時締め・未入力を Cron で自動検知</strong> → AWS SES で代理店に督促メール＋管理者同時通知。ガバナンスを仕組みで担保</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Value -->
+      <div class="card" style="padding: 10px 14px;">
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <span style="font-size:11px; font-weight:600; color:var(--text3); margin-right:2px;">主要価値</span>
+          <span class="tag">🏪 ナレッジ蓄積</span>
+          <span class="tag">📅 スケジュール運用</span>
+          <span class="tag">💰 売上習慣化</span>
+          <span class="tag">🔐 マルチテナント分離</span>
+          <span class="tag">📊 Google Sheets 連携</span>
+          <span class="tag">🔔 自動通知</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─ Right col ─ -->
+    <div style="flex:0.85; display:flex; flex-direction:column; gap:9px;">
+
+      <!-- User roles -->
+      <div class="card" style="flex:1;">
+        <h3 style="margin-bottom:10px;">主要ユーザーと権限</h3>
+        <div style="display:flex; flex-direction:column; gap:6px;">
+
+          <div style="display:flex; align-items:flex-start; gap:9px; background:#0f172a; border-radius:7px; padding:8px 10px;">
+            <span class="badge b-amber">SuperAdmin</span>
+            <p style="font-size:11px; color:var(--text3);">全テナント横断参照・システム管理。テナント制限なし</p>
+          </div>
+
+          <div style="display:flex; align-items:flex-start; gap:9px; background:#0f172a; border-radius:7px; padding:8px 10px;">
+            <span class="badge b-indigo">Admin</span>
+            <p style="font-size:11px; color:var(--text3);">テナント内の全操作・メモ編集・売上確認・通知管理</p>
+          </div>
+
+          <div style="display:flex; align-items:flex-start; gap:9px; background:#0f172a; border-radius:7px; padding:8px 10px;">
+            <span class="badge b-green">Agent</span>
+            <p style="font-size:11px; color:var(--text3);">担当イベントの売上入力・メモ追記（代理店名＋日時自動付与）</p>
+          </div>
+
+          <div style="display:flex; align-items:flex-start; gap:9px; background:#0f172a; border-radius:7px; padding:8px 10px; border:1px dashed #475569;">
+            <span class="badge b-slate">Broker</span>
+            <p style="font-size:11px; color:var(--text4);">仲介業者（要件上想定・段階実装。Intermediary モデルは実装済み）</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Screenshot placeholder -->
+      <div class="img-ph" style="height:82px;">
+        <span class="ico">📷</span>
+        <span>Admin ダッシュボード（代理店切替 + カレンダー色分け）</span>
+      </div>
+
+      <div class="img-ph" style="height:66px;">
+        <span class="ico">📷</span>
+        <span>ログイン画面</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="pn">1 / 4</div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════
+     PAGE 2 — Feature Highlights
+══════════════════════════════════════════════ -->
+<div class="page">
+  <div class="page-label">Feature Highlights</div>
+  <h2 style="margin-bottom:10px;">機能ハイライト — "使える"が一目でわかる</h2>
+
+  <div style="display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; gap:10px; height:calc(100% - 52px);">
+
+    <!-- ① Venue Knowledge -->
+    <div class="card" style="display:flex; gap:12px;">
+      <div style="flex:1; display:flex; flex-direction:column; gap:7px;">
+        <div style="display:flex; align-items:center; gap:7px;">
+          <span style="font-size:18px;">🏪</span>
+          <h3>会場ナレッジ管理</h3>
+          <span class="badge b-green" style="margin-left:auto;">実装済み</span>
+        </div>
+        <ul class="ul">
+          <li>ゴミ出しルール・現金預かり・搬入搬出時間・営業時間を構造化フィールドで保存</li>
+          <li>注意事項・担当者連絡先・参考リンク・仲介業者メモ</li>
+          <li>添付ファイル（PDF / 画像）— Vercel Blob または Google Drive 選択式</li>
+          <li>会場メモは Admin のみ編集、Agent は閲覧のみ（権限制御済み）</li>
+          <li>Intermediary（仲介業者）モデルで会場と紐づけ管理</li>
+        </ul>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:6px; width:110px; flex-shrink:0;">
+        <div class="img-ph" style="flex:1;">
+          <span class="ico">📷</span>
+          <span>Venue 詳細<br>（裏方ルール一式）</span>
+        </div>
+        <div class="img-ph" style="flex:1;">
+          <span class="ico">📷</span>
+          <span>添付一覧<br>（PDF / 画像）</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ② Schedule -->
+    <div class="card" style="display:flex; gap:12px;">
+      <div style="flex:1; display:flex; flex-direction:column; gap:7px;">
+        <div style="display:flex; align-items:center; gap:7px;">
+          <span style="font-size:18px;">📅</span>
+          <h3>スケジュール運用</h3>
+          <span class="badge b-green" style="margin-left:auto;">実装済み</span>
+        </div>
+        <ul class="ul">
+          <li>代理店ごとにカレンダーを色分け表示、フィルタリング可能</li>
+          <li>連続開催期間を 1 行にまとめてリスト表示、視認性を向上</li>
+          <li>Agent 画面では自分の担当イベントのみ絞り込んで表示</li>
+          <li>開催前・開催中・終了のステータス管理、報告期日 (reportDeadline) 追跡</li>
+          <li>会場 × 代理店 × 期間をイベント単位で紐づけ管理</li>
+        </ul>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:6px; width:110px; flex-shrink:0;">
+        <div class="img-ph" style="flex:1;">
+          <span class="ico">📷</span>
+          <span>カレンダー<br>（色分け + フィルタ）</span>
+        </div>
+        <div class="img-ph" style="flex:1;">
+          <span class="ico">📷</span>
+          <span>Agent<br>イベント一覧</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ③ Sales & Governance -->
+    <div class="card" style="display:flex; gap:12px;">
+      <div style="flex:1; display:flex; flex-direction:column; gap:7px;">
+        <div style="display:flex; align-items:center; gap:7px;">
+          <span style="font-size:18px;">💰</span>
+          <h3>日次売上入力 & ガバナンス</h3>
+          <span class="badge b-green" style="margin-left:auto;">実装済み</span>
+        </div>
+        <ul class="ul">
+          <li>Agent がイベントページから当日売上を入力（金額・駐車場費・担当者名など）</li>
+          <li>原則 21:00 締め — Cron が未入力イベントを検知し自動督促</li>
+          <li>共有メモ — Agent は追記のみ（代理店名＋日時を自動付与）、Admin は全文編集</li>
+          <li>売上データを Google Sheets へ 15 分間隔で自動同期（SalesRaw シート）</li>
+          <li>シート2に週次 / 代理店別 / 会場別集計を 2行/代理店 形式で自動書き込み</li>
+          <li>Admin 画面から手動で「スプシを更新」ボタンでも即時同期可能</li>
+        </ul>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:6px; width:110px; flex-shrink:0;">
+        <div class="img-ph" style="flex:1;">
+          <span class="ico">📷</span>
+          <span>Agent 売上入力<br>（当日 + メモ）</span>
+        </div>
+        <div class="img-ph" style="flex:1;">
+          <span class="ico">📷</span>
+          <span>Admin 売上管理<br>（一覧 + 集計）</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ④ Notifications & Access -->
+    <div class="card" style="display:flex; gap:12px;">
+      <div style="flex:1; display:flex; flex-direction:column; gap:7px;">
+        <div style="display:flex; align-items:center; gap:7px;">
+          <span style="font-size:18px;">🔔</span>
+          <h3>通知 & アクセス管理</h3>
+          <span class="badge b-green" style="margin-left:auto;">実装済み</span>
+        </div>
+        <ul class="ul">
+          <li><strong style="color:var(--text);">MISSING_SALES</strong> — 未入力イベントを検知、通知生成 + SES 督促メール</li>
+          <li><strong style="color:var(--text);">UNACCESSED_EVENT</strong> — 開催2日前に未アクセスを検知、通知生成</li>
+          <li>Agent がイベントページにアクセスした時点で通知を自動クローズ</li>
+          <li>通知一覧で未対応を Admin が一括確認・手動クローズも可能</li>
+          <li>アクセスログを DB に記録 — 誰がいつ確認したかを永続トラッキング</li>
+        </ul>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:6px; width:110px; flex-shrink:0;">
+        <div class="img-ph" style="flex:1;">
+          <span class="ico">📷</span>
+          <span>通知一覧<br>（未入力 / 未アクセス）</span>
+        </div>
+        <div class="img-ph" style="flex:1;">
+          <span class="ico">📷</span>
+          <span>督促メール<br>（SES テンプレ）</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="pn">2 / 4</div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════
+     PAGE 3 — Architecture & Tech Stack
+══════════════════════════════════════════════ -->
+<div class="page">
+  <div class="page-label">Architecture & Tech Stack</div>
+  <h2 style="margin-bottom:10px;">技術構成 — 実装ベース、設計方針も明記</h2>
+
+  <div style="display:flex; gap:14px; height:calc(100% - 52px);">
+
+    <!-- ─ Left: Architecture diagram ─ -->
+    <div style="flex:1.05;">
+      <div class="card" style="height:100%; display:flex; flex-direction:column; gap:6px;">
+        <h3 style="color:var(--text3);">システム構成図</h3>
+
+        <!-- Browser -->
+        <div style="text-align:center;">
+          <div style="display:inline-block; background:#0f172a; border:1px solid var(--border2); border-radius:8px; padding:5px 18px; font-size:11px; font-weight:600;">
+            🌐 ブラウザ（Next.js App Router — SSR / CSR）
+          </div>
+        </div>
+
+        <div class="arch-arrow">↓ HTTPS</div>
+
+        <!-- Vercel -->
+        <div class="arch-layer" style="background:linear-gradient(135deg,#1e293b,#1e2a3b); border:1.5px solid #3730a3;">
+          <div style="font-size:10px; font-weight:700; color:#a5b4fc; margin-bottom:6px;">▲ Vercel — Hosting / Serverless / Edge</div>
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            <span class="tag">Next.js 14 App Router</span>
+            <span class="tag">API Routes (Serverless Fn)</span>
+            <span class="tag">Vercel Cron Jobs</span>
+            <span class="tag">Vercel Blob Storage</span>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:8px;">
+          <div class="arch-arrow" style="flex:1;">↓ Prisma ORM</div>
+          <div class="arch-arrow" style="flex:1;">↓ @aws-sdk/client-ses</div>
+          <div class="arch-arrow" style="flex:1;">↓ googleapis (Service Account)</div>
+        </div>
+
+        <!-- Data layer -->
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:7px;">
+          <div class="arch-box" style="border-left:3px solid var(--green);">
+            <div style="font-size:11px; font-weight:700; color:var(--green); margin-bottom:3px;">🐘 PostgreSQL</div>
+            <div style="font-size:10px; color:var(--text4);">Supabase hosted<br>Prisma ORM (v5)<br>Connection pooling</div>
+          </div>
+          <div class="arch-box" style="border-left:3px solid var(--amber);">
+            <div style="font-size:11px; font-weight:700; color:var(--amber); margin-bottom:3px;">📧 AWS SES</div>
+            <div style="font-size:10px; color:var(--text4);">督促メール<br>管理者通知<br>Verified identity</div>
+          </div>
+          <div class="arch-box" style="border-left:3px solid #34d399;">
+            <div style="font-size:11px; font-weight:700; color:#6ee7b7; margin-bottom:3px;">📊 Google APIs</div>
+            <div style="font-size:10px; color:var(--text4);">Sheets（売上同期）<br>Drive（添付ファイル）<br>Service Account</div>
+          </div>
+        </div>
+
+        <!-- Auth -->
+        <div class="arch-box" style="border-left:3px solid var(--accent); display:flex; align-items:center; gap:10px; text-align:left;">
+          <span style="font-size:11px; font-weight:700; color:var(--accent); white-space:nowrap;">🔐 認証</span>
+          <div style="display:flex; gap:5px; flex-wrap:wrap;">
+            <span class="tag">PBKDF2-SHA512 (100k iter)</span>
+            <span class="tag">HMAC-SHA256 署名 Cookie</span>
+            <span class="tag">HttpOnly / 14日 TTL</span>
+            <span class="tag">RBAC (4 roles)</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ─ Right: Stack table + API ─ -->
+    <div style="flex:0.95; display:flex; flex-direction:column; gap:10px;">
+
+      <!-- Stack comparison -->
+      <div class="card" style="flex:1;">
+        <h3 style="margin-bottom:9px; display:flex; align-items:center; gap:8px;">
+          スタック比較
+          <span class="badge b-indigo">実装</span>
+          <span class="badge b-slate">設計方針</span>
+        </h3>
+        <table>
+          <thead>
+            <tr>
+              <th style="width:90px;">レイヤー</th>
+              <th><span class="badge b-indigo">実装（本番稼働中）</span></th>
+              <th><span class="badge b-slate">設計方針（参考）</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="color:var(--text4);">フロント</td>
+              <td>Next.js 14 App Router + Tailwind CSS</td>
+              <td style="color:var(--text4);">同左</td>
+            </tr>
+            <tr>
+              <td style="color:var(--text4);">ホスティング</td>
+              <td>Vercel（Edge + Serverless Functions）</td>
+              <td style="color:var(--text4);">同左</td>
+            </tr>
+            <tr>
+              <td style="color:var(--text4);">バックエンド</td>
+              <td>Next.js API Routes<br><span style="color:var(--text4);font-size:10px;">（Vercel Serverless 上）</span></td>
+              <td style="color:var(--text4);">AWS Lambda<br>+ API Gateway</td>
+            </tr>
+            <tr>
+              <td style="color:var(--text4);">データベース</td>
+              <td>PostgreSQL（Supabase）<br>+ Prisma ORM v5</td>
+              <td style="color:var(--text4);">DynamoDB<br>シングルテーブル設計</td>
+            </tr>
+            <tr>
+              <td style="color:var(--text4);">ファイル</td>
+              <td>Vercel Blob（default）<br>/ Google Drive（alt）</td>
+              <td style="color:var(--text4);">S3（署名 URL）</td>
+            </tr>
+            <tr>
+              <td style="color:var(--text4);">メール</td>
+              <td>AWS SES（@aws-sdk/client-ses）</td>
+              <td style="color:var(--text4);">同左</td>
+            </tr>
+            <tr>
+              <td style="color:var(--text4);">スケジューラ</td>
+              <td>Vercel Cron Jobs（vercel.json）</td>
+              <td style="color:var(--text4);">EventBridge Scheduler</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- API endpoints -->
+      <div class="card">
+        <h3 style="margin-bottom:8px;">代表的な API エンドポイント</h3>
+        <div style="display:flex; flex-wrap:wrap; gap:4px;">
+          <span class="tag">/api/auth/login</span>
+          <span class="tag">/api/auth/me</span>
+          <span class="tag">/api/venues</span>
+          <span class="tag">/api/events</span>
+          <span class="tag">/api/sales</span>
+          <span class="tag">/api/sales/summary</span>
+          <span class="tag">/api/sales/summary/venue-daily</span>
+          <span class="tag">/api/attachments</span>
+          <span class="tag">/api/notifications</span>
+          <span class="tag">/api/events/[id]/memo</span>
+          <span class="tag">/api/events/[id]/access</span>
+          <span class="tag">/api/intermediaries</span>
+          <span class="tag">/api/cron/check-missing-sales</span>
+          <span class="tag">/api/cron/sync-sales-to-sheets</span>
+          <span class="tag">/api/admin/sync-sheets</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="pn">3 / 4</div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════
+     PAGE 4 — Data Design & Operations
+══════════════════════════════════════════════ -->
+<div class="page">
+  <div class="page-label">Data Design & Operations</div>
+  <h2 style="margin-bottom:10px;">データ設計 & 運用 — 再現性・保守性</h2>
+
+  <div style="display:flex; gap:14px; height:calc(100% - 52px);">
+
+    <!-- ─ Left: Data model ─ -->
+    <div style="flex:1.2; display:flex; flex-direction:column; gap:10px;">
+
+      <!-- Entities grid -->
+      <div class="card" style="flex:1;">
+        <h3 style="margin-bottom:9px;">主要エンティティ（Prisma / PostgreSQL）</h3>
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:7px;">
+
+          <div class="entity" style="border-left:3px solid #6366f1;">
+            <div class="entity-title" style="color:#a5b4fc;">Tenant</div>
+            <div class="entity-body">id, name<br>── 全データの root<br>　tenantId で完全分離</div>
+          </div>
+
+          <div class="entity" style="border-left:3px solid var(--green);">
+            <div class="entity-title" style="color:#6ee7b7;">Venue</div>
+            <div class="entity-body">tenantId, name<br>openHours, trashRules<br>cashRules, note<br>intermediaryId</div>
+          </div>
+
+          <div class="entity" style="border-left:3px solid var(--amber);">
+            <div class="entity-title" style="color:#fcd34d;">Event</div>
+            <div class="entity-body">tenantId, venueId<br>agencyId, startDate<br>endDate, memo<br>reportDeadline</div>
+          </div>
+
+          <div class="entity" style="border-left:3px solid var(--red);">
+            <div class="entity-title" style="color:#fca5a5;">Sale</div>
+            <div class="entity-body">tenantId, eventId<br>date, amount<br>commissionType<br>partyType (AGENT/BROKER)</div>
+          </div>
+
+          <div class="entity" style="border-left:3px solid var(--accent);">
+            <div class="entity-title" style="color:#c7d2fe;">User / Agency</div>
+            <div class="entity-body">tenantId, name, email<br>role: SUPER_ADMIN<br>　　 ADMIN / AGENT<br>passwordHash (PBKDF2)</div>
+          </div>
+
+          <div class="entity" style="border-left:3px solid var(--cyan);">
+            <div class="entity-title" style="color:#a5f3fc;">Attachment</div>
+            <div class="entity-body">entityType<br>　VENUE / EVENT<br>blobUrl<br>driveFileId</div>
+          </div>
+
+          <div class="entity" style="border-left:3px solid #e879f9;">
+            <div class="entity-title" style="color:#f0abfc;">Notification</div>
+            <div class="entity-body">type: MISSING_SALES<br>　 UNACCESSED_EVENT<br>closedAt, closedBy</div>
+          </div>
+
+          <div class="entity" style="border-left:3px solid #64748b;">
+            <div class="entity-title" style="color:#94a3b8;">AccessLog</div>
+            <div class="entity-body">eventId, userId<br>agencyId, accessedAt<br>── アクセス追跡</div>
+          </div>
+
+          <div class="entity" style="border-left:3px solid #78716c; border-style:dashed;">
+            <div class="entity-title" style="color:#a8a29e;">Intermediary <span class="badge b-slate" style="font-size:9px;">実装済み</span></div>
+            <div class="entity-body">tenantId, name<br>reportFormUrl<br>── Broker 相当</div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Design intent: DynamoDB -->
+      <div class="card-dashed">
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+          <span class="badge b-slate">設計方針（参考）DynamoDB シングルテーブル設計</span>
+        </div>
+        <div style="font-family:'Courier New',monospace; font-size:10px; color:var(--text3); background:#0f172a; border-radius:6px; padding:8px 10px; line-height:1.8;">
+          PK: TENANT#&lt;tenantId&gt;&nbsp;&nbsp;SK: USER#... | VENUE#... | EVENT#... | SALES#&lt;date&gt; | ACCESS#... | ATTACH#...<br>
+          GSI1: date（日付起点の未入力チェック高速化）&nbsp;&nbsp;GSI2: venueId（会場別売上集計）<br>
+          TTL: アクセスログ・一時通知の自動削除
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ─ Right: Operations ─ -->
+    <div style="flex:0.8; display:flex; flex-direction:column; gap:10px;">
+
+      <!-- Cron jobs -->
+      <div class="card" style="flex:1;">
+        <h3 style="margin-bottom:9px;">定期処理 / Cron Jobs（Vercel）</h3>
+        <div style="display:flex; flex-direction:column; gap:7px;">
+
+          <div class="entity" style="border-left:3px solid var(--red);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
+              <span style="font-size:11px; font-weight:700; color:#fca5a5;">check-missing-sales</span>
+              <span class="tag" style="font-size:10px;">毎日 12:00 UTC</span>
+            </div>
+            <p style="font-size:10px; color:var(--text4);">
+              未入力イベントを検知 → MISSING_SALES 通知生成 + SES 督促メール一斉送信
+            </p>
+          </div>
+
+          <div class="entity" style="border-left:3px solid var(--amber);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
+              <span style="font-size:11px; font-weight:700; color:#fcd34d;">check-unaccessed-events</span>
+              <span class="tag" style="font-size:10px;">毎日 12:05 UTC</span>
+            </div>
+            <p style="font-size:10px; color:var(--text4);">
+              開催2日前 + 未アクセスのイベントを検知 → 通知生成。Agent アクセス時に自動クローズ
+            </p>
+          </div>
+
+          <div class="entity" style="border-left:3px solid var(--green);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
+              <span style="font-size:11px; font-weight:700; color:#6ee7b7;">sync-sales-to-sheets</span>
+              <span class="tag" style="font-size:10px;">15 分ごと</span>
+            </div>
+            <p style="font-size:10px; color:var(--text4);">
+              直近 90 日の売上を Google Sheets に同期。週次・代理店別・会場別集計を書き込み + 書式適用
+            </p>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Multi-tenant & Security -->
+      <div class="card">
+        <h3 style="margin-bottom:8px;">マルチテナント & セキュリティ</h3>
+        <ul class="ul">
+          <li>全モデルに <code>tenantId</code> を付与、クエリ時に自動スコープ</li>
+          <li>SUPER_ADMIN のみテナント横断参照が可能</li>
+          <li>セッション Cookie は HMAC-SHA256 署名で改ざん検知</li>
+          <li>PBKDF2 SHA-512（100,000 iterations）+ pepper でパスワード保護</li>
+        </ul>
+      </div>
+
+      <!-- Env vars -->
+      <div class="card">
+        <h3 style="margin-bottom:8px;">主要環境変数（Vercel）</h3>
+        <div style="font-family:'Courier New',monospace; font-size:10px; color:var(--text3); line-height:1.9;">
+          DATABASE_URL / DIRECT_URL<br>
+          BLOB_READ_WRITE_TOKEN<br>
+          GOOGLE_SERVICE_ACCOUNT_JSON_BASE64<br>
+          GOOGLE_SHEETS_SPREADSHEET_ID<br>
+          EMAIL_PROVIDER / SES_FROM / AWS_*<br>
+          SESSION_SECRET / CRON_SECRET
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="pn">4 / 4</div>
+</div>
+
+</body>
+</html>

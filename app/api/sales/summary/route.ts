@@ -62,13 +62,13 @@ export async function GET(request: Request) {
 
     const venueAverages: Record<string, number> = {};
     Object.entries(venueTotals).forEach(([venueId, value]) => {
-      venueAverages[venueId] = value.count ? value.total / value.count : 0;
+      venueAverages[venueId] = value.count ? Math.floor(value.total / value.count) : 0;
     });
 
     return NextResponse.json({
       agencyTotals,
       venueAverages,
-      overallAverage: totalCount ? totalAmount / totalCount : 0,
+      overallAverage: totalCount ? Math.floor(totalAmount / totalCount) : 0,
     });
   } catch (error) {
     return errorResponse(error);
