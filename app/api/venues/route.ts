@@ -105,6 +105,7 @@ export async function POST(request: Request) {
         workWindow: payload.workWindow ?? null,
         loadInTime: payload.loadInTime ?? null,
         loadOutTime: payload.loadOutTime ?? null,
+        setupDayBefore: payload.setupDayBefore ?? null,
         preContactRequired: payload.preContactRequired ?? false,
         brokerNote: payload.brokerNote ?? null,
         intermediaryId,

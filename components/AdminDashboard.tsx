@@ -25,10 +25,12 @@ type Venue = {
   notes: string | null;
   cashHandling: string | null;
   attachmentUrl: string | null;
+  phone: string | null;
   hours: string | null;
   workWindow: string | null;
   loadInTime: string | null;
   loadOutTime: string | null;
+  setupDayBefore: boolean | null;
 };
 
 type Attachment = { id: string; filename: string; url: string | null; createdAt: string };
@@ -354,12 +356,14 @@ export default function AdminDashboard() {
         address: formData.get('venueAddress'),
         note: formData.get('note'),
         // attachmentUrl は「URL入力」ではなくアップロードで埋める運用にする
+        phone: formData.get('phone') || null,
         cashHandling: formData.get('cashHandling') || null,
         notes: formData.get('notes'),
         hours: formData.get('hours'),
         workWindow: formData.get('workWindow'),
         loadInTime: formData.get('loadInTime'),
         loadOutTime: formData.get('loadOutTime'),
+        setupDayBefore: (() => { const v = formData.get('setupDayBefore'); return v === 'true' ? true : v === 'false' ? false : null; })(),
         intermediaryId: formData.get('intermediaryId') || null,
       }),
     });
@@ -394,12 +398,14 @@ export default function AdminDashboard() {
         name: formData.get('venueName'),
         address: formData.get('venueAddress') || null,
         note: formData.get('note') || null,
+        phone: formData.get('phone') || null,
         cashHandling: formData.get('cashHandling') || null,
         notes: formData.get('notes') || null,
         hours: formData.get('hours') || null,
         workWindow: formData.get('workWindow') || null,
         loadInTime: formData.get('loadInTime') || null,
         loadOutTime: formData.get('loadOutTime') || null,
+        setupDayBefore: (() => { const v = formData.get('setupDayBefore'); return v === 'true' ? true : v === 'false' ? false : null; })(),
         intermediaryId: formData.get('intermediaryId') || null,
       }),
     });
@@ -839,6 +845,10 @@ export default function AdminDashboard() {
               <label htmlFor="venue-address">住所</label>
               <input id="venue-address" name="venueAddress" />
             </div>
+            <div>
+              <label htmlFor="venue-phone">連絡先電話番号</label>
+              <input id="venue-phone" name="phone" type="tel" placeholder="03-0000-0000" />
+            </div>
             <div className="md:col-span-2">
               <label htmlFor="venue-note">会場メモ</label>
               <textarea id="venue-note" name="note" rows={2} />
@@ -859,6 +869,15 @@ export default function AdminDashboard() {
                     {option.label}
                   </option>
                 ))}
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="venue-setup">設置タイミング</label>
+              <select id="venue-setup" name="setupDayBefore">
+                <option value="">未設定</option>
+                <option value="true">前日設置</option>
+                <option value="false">当日設置</option>
               </select>
             </div>
 
@@ -939,8 +958,16 @@ export default function AdminDashboard() {
                 <li key={venue.id} className="border border-slate-800 rounded p-3 space-y-2">
                   <div className="flex items-center justify-between gap-2">
                     <div>
-                      {venue.name} (
-                      {venue.cashHandling === 'HOLD' ? '預かり' : venue.cashHandling === 'TAKE_HOME' ? '持ち帰り' : '未設定'})
+                      <div>
+                        {venue.name} (
+                        {venue.cashHandling === 'HOLD' ? '預かり' : venue.cashHandling === 'TAKE_HOME' ? '持ち帰り' : '未設定'})
+                      </div>
+                      <div className="text-xs text-slate-400 flex gap-3 mt-0.5">
+                        {venue.setupDayBefore != null && (
+                          <span>{venue.setupDayBefore ? '前日設置' : '当日設置'}</span>
+                        )}
+                        {venue.phone && <span>TEL: {venue.phone}</span>}
+                      </div>
                     </div>
                     <div className="flex gap-2">
                       <button className="bg-slate-700 text-white" type="button" onClick={() => setEditingVenueId(isEditing ? null : venue.id)}>
@@ -956,6 +983,7 @@ export default function AdminDashboard() {
                     <form className="grid gap-2 md:grid-cols-2" onSubmit={(submitEvent) => handleUpdateVenue(submitEvent, venue.id)}>
                       <input name="venueName" defaultValue={venue.name} required />
                       <input name="venueAddress" defaultValue={venue.address ?? ''} placeholder="住所" />
+                      <input name="phone" defaultValue={venue.phone ?? ''} placeholder="連絡先電話番号" type="tel" />
                       <textarea className="md:col-span-2" name="note" defaultValue={venue.note ?? ''} placeholder="会場メモ" rows={2} />
                       <select name="cashHandling" defaultValue={venue.cashHandling ?? ''}>
                         <option value="">選択してください</option>
@@ -964,6 +992,11 @@ export default function AdminDashboard() {
                             {option.label}
                           </option>
                         ))}
+                      </select>
+                      <select name="setupDayBefore" defaultValue={venue.setupDayBefore == null ? '' : String(venue.setupDayBefore)}>
+                        <option value="">未設定</option>
+                        <option value="true">前日設置</option>
+                        <option value="false">当日設置</option>
                       </select>
                       <select name="intermediaryId" defaultValue={venue.intermediaryId ?? ''}>
                         <option value="">未選択</option>

@@ -20,6 +20,7 @@ type VenuePayload = {
   workWindow?: string | null;
   loadInTime?: string | null;
   loadOutTime?: string | null;
+  setupDayBefore?: boolean | null;
   preContactRequired?: boolean;
   brokerNote?: string | null;
   intermediaryId?: string | null;
@@ -65,6 +66,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
         workWindow: payload.workWindow ?? venue.workWindow,
         loadInTime: payload.loadInTime ?? venue.loadInTime,
         loadOutTime: payload.loadOutTime ?? venue.loadOutTime,
+        setupDayBefore: payload.setupDayBefore !== undefined ? payload.setupDayBefore : venue.setupDayBefore,
         preContactRequired: payload.preContactRequired ?? venue.preContactRequired,
         brokerNote: payload.brokerNote ?? venue.brokerNote,
         intermediaryId: intermediaryId ?? null,

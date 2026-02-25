@@ -133,6 +133,7 @@ model Venue {
   workWindow        String?
   loadInTime        String?
   loadOutTime       String?
+  setupDayBefore    Boolean?
   preContactRequired Boolean @default(false)
   brokerNote        String?
   createdAt         DateTime @default(now())
