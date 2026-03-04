@@ -318,20 +318,35 @@ export default function AdminDashboard() {
     setSectionMessage('venue', null);
 
     for (const file of files) {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('entityType', 'VENUE');
-      formData.append('entityId', venueId);
+      // クライアント直接アップロード (Vercel Blob) で 4.5 MB ボディ制限を回避する。
+      // Google Drive 構成など blob 以外の場合はサーバー経由にフォールバックする。
+      let uploaded = false;
+      try {
+        const { upload } = await import('@vercel/blob/client');
+        await upload(`attachments/VENUE/${venueId}/${file.name}`, file, {
+          access: 'public',
+          handleUploadUrl: '/api/attachments/upload-token',
+          clientPayload: JSON.stringify({ entityType: 'VENUE', entityId: venueId }),
+        });
+        uploaded = true;
+      } catch {
+        // blob トークンエンドポイントが使用不可 (gdrive 等) → サーバー経由にフォールバック
+      }
 
-      const response = await fetch('/api/attachments/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const body = await response.json().catch(() => null);
-        setSectionMessage('venue', body?.message ?? '添付ファイルのアップロードに失敗しました。');
-        return;
+      if (!uploaded) {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('entityType', 'VENUE');
+        formData.append('entityId', venueId);
+        const response = await fetch('/api/attachments/upload', {
+          method: 'POST',
+          body: formData,
+        });
+        if (!response.ok) {
+          const body = await response.json().catch(() => null);
+          setSectionMessage('venue', body?.message ?? '添付ファイルのアップロードに失敗しました。');
+          return;
+        }
       }
     }
 

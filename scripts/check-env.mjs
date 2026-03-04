@@ -36,6 +36,10 @@ try {
   warnings.push('DIRECT_URL format could not be parsed as URL.');
 }
 
+if (!process.env.CRON_SECRET) {
+  warnings.push('CRON_SECRET is not set. Cron jobs (sync-sales-to-sheets etc.) will return 500 on Vercel. Generate a random secret and add it to Vercel environment variables.');
+}
+
 for (const message of warnings) {
   console.warn(`⚠️ ${message}`);
 }
