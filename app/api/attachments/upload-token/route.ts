@@ -1,4 +1,4 @@
-import { handleUpload, type HandleUploadBody } from '@vercel/blob';
+import { handleUpload, type HandleUploadBody } from '@vercel/blob/client';
 import { NextResponse } from 'next/server';
 import { getPrisma } from '@/lib/db';
 import { requireSession, requireRoles, errorResponse } from '@/lib/api';
@@ -43,7 +43,7 @@ export async function POST(request: Request) {
     const jsonResponse = await handleUpload({
       body,
       request,
-      onBeforeGenerateToken: async (_pathname, clientPayload) => {
+      onBeforeGenerateToken: async (_pathname, clientPayload, _multipart) => {
         const { entityType, entityId } = clientPayload
           ? (JSON.parse(clientPayload) as { entityType: string; entityId: string })
           : { entityType: '', entityId: '' };
@@ -92,7 +92,7 @@ export async function POST(request: Request) {
             driveWebViewLink: null,
             filename: blob.pathname.split('/').pop() ?? blob.pathname,
             contentType: blob.contentType ?? 'application/octet-stream',
-            size: blob.size,
+            size: 0,
             uploadedByUserId: userId,
           },
         });
