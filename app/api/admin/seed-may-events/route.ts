@@ -167,6 +167,15 @@ function dateRange(startStr: string, endStr: string): Date[] {
   return dates;
 }
 
+async function runBatch<T, R>(items: T[], size: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = [];
+  for (let i = 0; i < items.length; i += size) {
+    const chunk = await Promise.all(items.slice(i, i + size).map(fn));
+    results.push(...chunk);
+  }
+  return results;
+}
+
 export async function POST(request: Request) {
   const prisma = getPrisma();
   try {
@@ -181,21 +190,14 @@ export async function POST(request: Request) {
 
     const pwHash = await hashPassword(DEFAULT_PASSWORD);
 
-    // ── 1. Venues ──
-    const existingVenues = await prisma.venue.findMany({ where: { tenantId } });
-    const venueMap = new Map<string, string>(); // name → id
-    for (const v of existingVenues) venueMap.set(v.name, v.id);
+    // ── 1. Venues: one read → one bulk insert → re-read IDs ──
+    const existingVenues = await prisma.venue.findMany({ where: { tenantId }, select: { name: true, id: true } });
+    const venueMap = new Map(existingVenues.map(v => [v.name, v.id]));
+    const venuesToCreate = VENUES.filter(v => !venueMap.has(v.name));
 
-    const venuesCreated: string[] = [];
-    const venuesSkipped: string[] = [];
-
-    for (const v of VENUES) {
-      if (venueMap.has(v.name)) {
-        venuesSkipped.push(v.name);
-        continue;
-      }
-      const created = await prisma.venue.create({
-        data: {
+    if (venuesToCreate.length > 0) {
+      await prisma.venue.createMany({
+        data: venuesToCreate.map(v => ({
           tenantId,
           name: v.name,
           address: v.address ?? null,
@@ -204,101 +206,99 @@ export async function POST(request: Request) {
           setupDayBefore: v.setupDayBefore ?? null,
           loadInTime: v.loadInTime ?? null,
           preContactRequired: false,
-        },
+        })),
       });
-      venueMap.set(created.name, created.id);
-      venuesCreated.push(created.name);
+      const fresh = await prisma.venue.findMany({
+        where: { tenantId, name: { in: venuesToCreate.map(v => v.name) } },
+        select: { name: true, id: true },
+      });
+      fresh.forEach(v => venueMap.set(v.name, v.id));
     }
 
-    // ── 2. Agencies ──
-    const existingAgencies = await prisma.agency.findMany({ where: { tenantId } });
-    const agencyMap = new Map<string, string>(); // name → id
-    for (const a of existingAgencies) agencyMap.set(a.name, a.id);
+    // ── 2. Agencies: one read → one bulk insert → re-read IDs ──
+    const existingAgencies = await prisma.agency.findMany({ where: { tenantId }, select: { name: true, id: true } });
+    const agencyMap = new Map(existingAgencies.map(a => [a.name, a.id]));
+    const agenciesToCreate = AGENTS.filter(a => !agencyMap.has(a.name));
 
-    const agenciesCreated: string[] = [];
-    const agenciesSkipped: string[] = [];
-
-    for (const a of AGENTS) {
-      if (agencyMap.has(a.name)) {
-        agenciesSkipped.push(a.name);
-        continue;
-      }
-      // Check if email already taken
-      const emailTaken = await prisma.agency.findFirst({ where: { email: a.email } });
-      const email = emailTaken ? null : a.email;
-
-      const created = await prisma.agency.create({
-        data: {
+    if (agenciesToCreate.length > 0) {
+      await prisma.agency.createMany({
+        data: agenciesToCreate.map(a => ({
           tenantId,
           name: a.name,
-          email,
+          email: a.email,
           passwordHash: pwHash,
           isActive: true,
-        },
+        })),
       });
-      agencyMap.set(created.name, created.id);
-      agenciesCreated.push(created.name);
+      const fresh = await prisma.agency.findMany({
+        where: { tenantId, name: { in: agenciesToCreate.map(a => a.name) } },
+        select: { name: true, id: true },
+      });
+      fresh.forEach(a => agencyMap.set(a.name, a.id));
     }
 
-    // ── 3. Events + EventDays ──
-    const eventsCreated: string[] = [];
-    const eventsSkipped: string[] = [];
+    // ── 3. Events: one read for dedup → parallel batch creates ──
+    const existingEvents = await prisma.event.findMany({
+      where: { tenantId },
+      select: { venueId: true, agencyId: true, startDate: true },
+    });
+    const existingKey = new Set(
+      existingEvents.map(e => `${e.venueId}|${e.agencyId}|${e.startDate.getTime()}`),
+    );
 
-    for (const e of EVENTS) {
+    const eventsToCreate = EVENTS.filter(e => {
       const venueId = venueMap.get(e.venue);
       const agencyId = agencyMap.get(e.agency);
+      if (!venueId || !agencyId) return false;
+      const t = new Date(e.startDate + 'T00:00:00Z').getTime();
+      return !existingKey.has(`${venueId}|${agencyId}|${t}`);
+    });
+    const eventsSkipped = EVENTS.length - eventsToCreate.length;
 
-      if (!venueId || !agencyId) {
-        eventsSkipped.push(`${e.venue}/${e.agency}: venue=${venueId ? 'ok' : 'MISSING'} agency=${agencyId ? 'ok' : 'MISSING'}`);
-        continue;
-      }
-
-      const startDate = new Date(e.startDate + 'T00:00:00Z');
-      const endDate = new Date(e.endDate + 'T00:00:00Z');
-
-      // Idempotency: skip if exact same event already exists
-      const existing = await prisma.event.findFirst({
-        where: { tenantId, venueId, agencyId, startDate },
-      });
-      if (existing) {
-        eventsSkipped.push(`${e.venue}/${e.agency}/${e.startDate}: already exists`);
-        continue;
-      }
-
-      const event = await prisma.event.create({
+    const createdEvents = await runBatch(eventsToCreate, 10, e =>
+      prisma.event.create({
         data: {
           tenantId,
-          agencyId,
-          venueId,
+          agencyId: agencyMap.get(e.agency)!,
+          venueId: venueMap.get(e.venue)!,
           title: e.venue,
-          startDate,
-          endDate,
+          startDate: new Date(e.startDate + 'T00:00:00Z'),
+          endDate: new Date(e.endDate + 'T00:00:00Z'),
           memo: e.memo ?? null,
         },
-      });
+        select: { id: true, startDate: true, endDate: true },
+      }),
+    );
 
-      // Create EventDay for each day
-      const days = dateRange(e.startDate, e.endDate);
-      for (const date of days) {
-        await prisma.eventDay.upsert({
-          where: { eventId_date: { eventId: event.id, date } },
-          update: {},
-          create: { tenantId, eventId: event.id, date, brokerCompleted: false },
-        });
-      }
+    // ── 4. EventDays: single bulk insert ──
+    const allEventDays = createdEvents.flatMap((evt, i) => {
+      const e = eventsToCreate[i];
+      return dateRange(e.startDate, e.endDate).map(date => ({
+        tenantId,
+        eventId: evt.id,
+        date,
+        brokerCompleted: false,
+      }));
+    });
 
-      eventsCreated.push(`${e.venue} (${e.startDate}〜${e.endDate}) → ${e.agency}`);
+    if (allEventDays.length > 0) {
+      await prisma.eventDay.createMany({ data: allEventDays, skipDuplicates: true });
     }
 
     return NextResponse.json({
       ok: true,
       defaultPassword: DEFAULT_PASSWORD,
       summary: {
-        venues: { created: venuesCreated.length, skipped: venuesSkipped.length },
-        agencies: { created: agenciesCreated.length, skipped: agenciesSkipped.length },
-        events: { created: eventsCreated.length, skipped: eventsSkipped.length },
+        venues: { created: venuesToCreate.length, skipped: existingVenues.length },
+        agencies: { created: agenciesToCreate.length, skipped: existingAgencies.length },
+        events: { created: createdEvents.length, skipped: eventsSkipped },
+        eventDays: allEventDays.length,
       },
-      details: { venuesCreated, venuesSkipped, agenciesCreated, agenciesSkipped, eventsCreated, eventsSkipped },
+      details: {
+        venuesCreated: venuesToCreate.map(v => v.name),
+        agenciesCreated: agenciesToCreate.map(a => a.name),
+        eventsCreated: eventsToCreate.map(e => `${e.venue} (${e.startDate}〜${e.endDate}) → ${e.agency}`),
+      },
     });
   } catch (error) {
     return errorResponse(error);
