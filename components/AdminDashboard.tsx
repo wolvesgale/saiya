@@ -313,6 +313,27 @@ export default function AdminDashboard() {
     setSectionMessage('user', body?.message ?? 'ユーザーの作成に失敗しました。');
   };
 
+  const handleResetUserPassword = async (userId: string, userEmail: string) => {
+    const newPassword = window.prompt(`${userEmail} の新しいパスワードを入力してください（6文字以上）:`);
+    if (!newPassword) return;
+    if (newPassword.length < 6) {
+      setSectionMessage('user', 'パスワードは6文字以上で入力してください。');
+      return;
+    }
+    setSectionMessage('user', null);
+    const response = await fetch(`/api/users/${userId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: newPassword, mustChangePassword: false }),
+    });
+    if (response.ok) {
+      setSectionMessage('user', `${userEmail} のパスワードをリセットしました。`);
+    } else {
+      const body = await response.json().catch(() => null);
+      setSectionMessage('user', body?.message ?? 'パスワードリセットに失敗しました。');
+    }
+  };
+
   const handleUploadVenueAttachments = async (venueId: string, files: File[]) => {
     if (!files.length) return;
     setSectionMessage('venue', null);
@@ -764,10 +785,19 @@ export default function AdminDashboard() {
             </div>
           </form>
 
-          <ul className="space-y-1 text-sm text-slate-300">
+          <ul className="space-y-2 text-sm text-slate-300">
             {filteredUsers.map((user) => (
-              <li key={user.id}>
-                {user.email} ({user.role})
+              <li key={user.id} className="flex items-center justify-between gap-3 rounded border border-slate-800 px-3 py-2">
+                <span>
+                  {user.email}{' '}
+                  <span className="text-xs text-slate-500">({user.role})</span>
+                </span>
+                <button
+                  onClick={() => handleResetUserPassword(user.id, user.email)}
+                  className="shrink-0 rounded bg-slate-700 px-2 py-1 text-xs text-slate-200 hover:bg-slate-600"
+                >
+                  PW リセット
+                </button>
               </li>
             ))}
             {!filteredUsers.length ? <li className="text-xs text-slate-500">該当ユーザーがありません。</li> : null}

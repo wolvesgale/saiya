@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getPrisma } from '@/lib/db';
 import { requireSession, requireRoles, errorResponse } from '@/lib/api';
+import { hashPassword } from '@/lib/auth';
 import { auditLog } from '@/lib/audit';
 
 export const runtime = 'nodejs';
@@ -21,14 +22,21 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     }
 
-    const updated = await prisma.user.update({
-      where: { id: params.id },
-      data: {
-        role: payload.role ?? target.role,
-        isActive: payload.isActive ?? target.isActive,
-        agencyId: payload.agencyId ?? target.agencyId,
-      },
-    });
+    const data: Record<string, unknown> = {
+      role: payload.role ?? target.role,
+      isActive: payload.isActive ?? target.isActive,
+      agencyId: payload.agencyId ?? target.agencyId,
+    };
+
+    if (payload.password) {
+      if (typeof payload.password !== 'string' || payload.password.length < 6) {
+        return NextResponse.json({ message: 'Password must be at least 6 characters' }, { status: 400 });
+      }
+      data.passwordHash = await hashPassword(payload.password);
+      data.mustChangePassword = payload.mustChangePassword ?? true;
+    }
+
+    const updated = await prisma.user.update({ where: { id: params.id }, data });
 
     auditLog('user.updated', { userId: updated.id, updatedBy: user.id });
 
