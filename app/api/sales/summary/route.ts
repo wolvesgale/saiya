@@ -45,29 +45,33 @@ export async function GET(request: Request) {
     });
 
     const agencyTotals: Record<string, number> = {};
-    const venueTotals: Record<string, { total: number; count: number }> = {};
+    const agencyVenueTotals: Record<string, Record<string, { total: number; count: number }>> = {};
     let totalAmount = 0;
     let totalCount = 0;
 
     sales.forEach((sale) => {
       agencyTotals[sale.agencyId] = (agencyTotals[sale.agencyId] ?? 0) + sale.amount;
       const venueId = sale.event.venueId;
-      const venueTotal = venueTotals[venueId] ?? { total: 0, count: 0 };
+      if (!agencyVenueTotals[sale.agencyId]) agencyVenueTotals[sale.agencyId] = {};
+      const venueTotal = agencyVenueTotals[sale.agencyId][venueId] ?? { total: 0, count: 0 };
       venueTotal.total += sale.amount;
       venueTotal.count += 1;
-      venueTotals[venueId] = venueTotal;
+      agencyVenueTotals[sale.agencyId][venueId] = venueTotal;
       totalAmount += sale.amount;
       totalCount += 1;
     });
 
-    const venueAverages: Record<string, number> = {};
-    Object.entries(venueTotals).forEach(([venueId, value]) => {
-      venueAverages[venueId] = value.count ? Math.floor(value.total / value.count) : 0;
+    const agencyVenueAverages: Record<string, Record<string, number>> = {};
+    Object.entries(agencyVenueTotals).forEach(([aid, venues]) => {
+      agencyVenueAverages[aid] = {};
+      Object.entries(venues).forEach(([venueId, value]) => {
+        agencyVenueAverages[aid][venueId] = value.count ? Math.floor(value.total / value.count) : 0;
+      });
     });
 
     return NextResponse.json({
       agencyTotals,
-      venueAverages,
+      agencyVenueAverages,
       overallAverage: totalCount ? Math.floor(totalAmount / totalCount) : 0,
     });
   } catch (error) {

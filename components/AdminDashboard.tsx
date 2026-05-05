@@ -55,7 +55,7 @@ type Event = {
 
 type SummaryResponse = {
   agencyTotals: Record<string, number>;
-  venueAverages: Record<string, number>;
+  agencyVenueAverages: Record<string, Record<string, number>>;
   overallAverage: number;
 };
 
@@ -1388,14 +1388,20 @@ export default function AdminDashboard() {
                         <td className="py-2">{agency.name}</td>
                         <td className="py-2">{total.toLocaleString()}</td>
                         <td className="py-2">
-                          {venues.map((venue) => {
-                            const average = summary?.venueAverages?.[venue.id];
-                            return average !== undefined ? (
-                              <div key={venue.id} className="text-xs text-slate-400">
-                                {venue.name}: {average.toLocaleString()}
-                              </div>
-                            ) : null;
-                          })}
+                          {(() => {
+                            const agencyAverages = summary?.agencyVenueAverages?.[agency.id];
+                            if (!agencyAverages) return <span className="text-xs text-slate-500">—</span>;
+                            const entries = Object.entries(agencyAverages);
+                            if (!entries.length) return <span className="text-xs text-slate-500">—</span>;
+                            return entries.map(([venueId, avg]) => {
+                              const venue = venues.find((v) => v.id === venueId);
+                              return (
+                                <div key={venueId} className="text-xs text-slate-400">
+                                  {venue?.name ?? venueId}: {avg.toLocaleString()}
+                                </div>
+                              );
+                            });
+                          })()}
                         </td>
                       </tr>
                     );
