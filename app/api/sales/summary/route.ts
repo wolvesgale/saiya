@@ -32,26 +32,56 @@ export async function GET(request: Request) {
     const agencyId = user.role === 'AGENT' ? user.agencyId ?? undefined : agencyIdParam;
 
     if (user.role === 'AGENT' && !agencyId) {
-      return NextResponse.json({ agencyTotals: {}, venueAverages: {} });
+      return NextResponse.json({ agencyTotals: {}, agencyVenueAverages: {}, overallAverage: 0 });
     }
 
-    const sales = await prisma.sale.findMany({
+    // 対象月と重なるイベントを取得（月を跨ぐイベントも含む）
+    const overlappingEvents = await prisma.event.findMany({
       where: {
         ...(tenantId ? { tenantId } : {}),
         ...(agencyId ? { agencyId } : {}),
+        startDate: { lt: end },
+        endDate: { gte: start },
+      },
+      select: { id: true, venueId: true, agencyId: true },
+    });
+
+    if (!overlappingEvents.length) {
+      return NextResponse.json({ agencyTotals: {}, agencyVenueAverages: {}, overallAverage: 0 });
+    }
+
+    const eventIds = overlappingEvents.map((e) => e.id);
+    const eventVenueMap = new Map(overlappingEvents.map((e) => [e.id, e.venueId]));
+
+    // 月間合計用: 当月の売上のみ
+    const monthlySales = await prisma.sale.findMany({
+      where: {
+        ...(tenantId ? { tenantId } : {}),
+        eventId: { in: eventIds },
         date: { gte: start, lt: end },
       },
-      include: { event: true },
+    });
+
+    // 平均計算用: 対象月に開催されたイベントの全日程分の売上
+    const allEventSales = await prisma.sale.findMany({
+      where: {
+        ...(tenantId ? { tenantId } : {}),
+        eventId: { in: eventIds },
+      },
     });
 
     const agencyTotals: Record<string, number> = {};
+    monthlySales.forEach((sale) => {
+      agencyTotals[sale.agencyId] = (agencyTotals[sale.agencyId] ?? 0) + sale.amount;
+    });
+
     const agencyVenueTotals: Record<string, Record<string, { total: number; count: number }>> = {};
     let totalAmount = 0;
     let totalCount = 0;
 
-    sales.forEach((sale) => {
-      agencyTotals[sale.agencyId] = (agencyTotals[sale.agencyId] ?? 0) + sale.amount;
-      const venueId = sale.event.venueId;
+    allEventSales.forEach((sale) => {
+      const venueId = eventVenueMap.get(sale.eventId);
+      if (!venueId) return;
       if (!agencyVenueTotals[sale.agencyId]) agencyVenueTotals[sale.agencyId] = {};
       const venueTotal = agencyVenueTotals[sale.agencyId][venueId] ?? { total: 0, count: 0 };
       venueTotal.total += sale.amount;
