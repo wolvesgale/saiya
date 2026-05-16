@@ -506,6 +506,20 @@ export default function AdminDashboard() {
     setSectionMessage('event', body?.message ?? 'イベントの作成に失敗しました。');
   };
 
+  const handleSeedJune = async () => {
+    if (!window.confirm('6月分のイベントデータをシステムに登録します。よろしいですか？')) return;
+    setSectionMessage('event', null);
+    const response = await fetch('/api/admin/seed-june-events', { method: 'POST' });
+    const body = await response.json().catch(() => null);
+    if (response.ok && body?.ok) {
+      const s = body.summary;
+      setSectionMessage('event', `6月データ登録完了: 会場 ${s.venues.created}件追加, イベント ${s.events.created}件追加`);
+      refresh();
+    } else {
+      setSectionMessage('event', body?.message ?? '6月データの登録に失敗しました。');
+    }
+  };
+
   const handleCreateIntermediary = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSectionMessage('intermediary', null);
@@ -1141,12 +1155,21 @@ export default function AdminDashboard() {
           <div className="bg-slate-900/70 border border-slate-800 p-6 rounded-lg space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-lg font-semibold">スケジュール/イベント</h2>
-              <input
-                className="bg-slate-950/40 border border-slate-700 rounded px-3 py-1 text-slate-100 text-xs"
-                placeholder="イベント検索"
-                value={eventQuery}
-                onChange={(event) => setEventQuery(event.target.value)}
-              />
+              <div className="flex items-center gap-2">
+                <input
+                  className="bg-slate-950/40 border border-slate-700 rounded px-3 py-1 text-slate-100 text-xs"
+                  placeholder="イベント検索"
+                  value={eventQuery}
+                  onChange={(event) => setEventQuery(event.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={handleSeedJune}
+                  className="shrink-0 rounded bg-indigo-700 px-3 py-1 text-xs text-white hover:bg-indigo-600"
+                >
+                  6月データ投入
+                </button>
+              </div>
             </div>
             <Banner section="event" />
             <form onSubmit={handleCreateEvent} className="space-y-3">
